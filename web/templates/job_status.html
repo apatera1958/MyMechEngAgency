@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Job {{ job.job_name or job.id }} | MyMechEngAgency{% endblock %}
+{% block head %}
+{% if job.status in ['queued', 'running'] %}<meta http-equiv="refresh" content="5">{% endif %}
+{% endblock %}
+{% block content %}
+<h1>{{ job.job_name or 'Job' }}</h1>
+<div class="job-box">
+  <p><strong>Job ID:</strong> {{ job.id }}</p>
+  <p><strong>Kind:</strong> {{ job.kind }}</p>
+  <p><strong>Status:</strong> <span class="status {{ job.status }}">{{ job.status }}</span></p>
+  <p><strong>Created:</strong> {{ job.created_at }}</p>
+  {% if job.original_filename %}<p><strong>Original PDF:</strong> {{ job.original_filename }}</p>{% endif %}
+  {% if job.pdf_page_count %}<p><strong>PDF pages:</strong> {{ job.pdf_page_count }}</p>{% endif %}
+  {% if job.hints_filename %}<p><strong>Optional hints:</strong> {{ job.hints_filename }} → <code>PROBhints.txt</code></p>{% endif %}
+  {% if job.models_filename %}<p><strong>Optional model override:</strong> {{ job.models_filename }} → <code>PROBgpt_models.yaml</code></p>{% endif %}
+  {% if job.parent_id %}<p><strong>Parent job:</strong> <a href="{{ url_for('job_status', job_id=job.parent_id) }}">{{ job.parent_id }}</a></p>{% endif %}
+  {% if job.error %}<p class="error"><strong>Error:</strong> {{ job.error }}</p>{% endif %}
+</div>
+
+<p class="hint">Return to <a href="{{ url_for('jobs') }}">My Jobs</a> using your MyAgency ID.</p>
+
+<p>
+  <a class="button secondary" href="{{ url_for('log', job_id=job.id) }}">View log</a>
+  {% if job.result_html %}
+    <a class="button" href="{{ url_for('result', job_id=job.id) }}">View HTML result</a>
+    <a class="button secondary" href="{{ url_for('download', job_id=job.id) }}">Download HTML</a>
+  {% endif %}
+</p>
+
+{% if job.status == 'complete' and job.result_html %}
+<section class="continuation">
+  <h2>Ask another follow-up question</h2>
+  <form method="post" action="{{ url_for('continue_job', job_id=job.id) }}" class="panel-form">
+    <textarea name="question" rows="5" placeholder="Ask a follow-up question about this current transcript..." required></textarea>
+    <button type="submit">Queue continuation</button>
+  </form>
+</section>
+{% endif %}
+
+{% if job.status in ['queued', 'running'] %}
+<p class="hint">This page refreshes automatically every 5 seconds while the job is queued or running.</p>
+{% endif %}
+{% endblock %}

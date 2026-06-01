@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block title %}Submit PDF | MyMechEngAgency{% endblock %}
+{% block content %}
+<h1>Submit a PDF</h1>
+<p class="hint">Submitting as <strong>{{ user.handle }}</strong>. Limit: {{ max_jobs_per_user_day }} jobs per 24 hours for this MyAgency ID.</p>
+<form method="post" enctype="multipart/form-data" class="panel-form">
+  <label>Job name / short description</label>
+  <input type="text" name="job_name" placeholder="Beam warmup, Heat exchanger test, Homework example 1" required>
+
+  <label>PDF problem statement</label>
+  <input type="file" name="pdf" accept="application/pdf,.pdf" required>
+  <p class="hint">Required. The uploaded PDF may have any descriptive filename; internally it is copied to <code>PROB/ProblemStatement.pdf</code> for MyAgency. Limit: {{ max_pdf_pages }} pages and {{ max_upload_mb }} MB.</p>
+
+  <label>Optional hints file</label>
+  <input type="file" name="hints_file" accept="text/plain,.txt">
+  <p class="hint">Optional. If provided, this is saved as <code>PROB/PROBhints.txt</code> and passed to Agent Solve as user-provided hints.</p>
+
+  <label>Optional GPT model override</label>
+  <input type="file" name="models_file" accept=".yaml,.yml,application/x-yaml,text/yaml,text/plain">
+  <p class="hint">Optional. If provided, this is saved as <code>PROB/PROBgpt_models.yaml</code> and can override the default models in <code>config.yaml</code>.</p>
+
+  {% if not server_key_available %}
+  <label>OpenAI API key for this job</label>
+  <input type="password" name="openai_api_key" placeholder="sk-..." required>
+  <p class="hint">This server has no server-side OpenAI key configured, so your key is required for this job.</p>
+  {% endif %}
+
+  <label>Number of solve agents</label>
+  <input type="number" name="n_agents" value="2" min="1" max="8">
+  <button type="submit">Queue job</button>
+</form>
+{% endblock %}

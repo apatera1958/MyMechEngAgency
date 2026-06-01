@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Admin | MyMechEngAgency{% endblock %}
+{% block content %}
+<h1>Admin</h1>
+<div class="cards">
+  <div class="card"><h2>Active jobs</h2><p>{{ active_jobs }} / {{ max_active_jobs }}</p></div>
+  <div class="card"><h2>Retention</h2><p>{{ retention_hours }} hours</p></div>
+  <div class="card"><h2>Server key</h2><p>{{ 'configured' if server_key_available else 'not configured' }}</p></div>
+</div>
+<h2>Recent jobs</h2>
+<table>
+  <thead><tr><th>Created</th><th>User</th><th>Job name</th><th>File</th><th>Status</th><th>Kind</th><th>Log</th></tr></thead>
+  <tbody>
+    {% for job in jobs %}
+    <tr>
+      <td>{{ job.created_at }}</td>
+      <td>{{ job.handle or '—' }}</td>
+      <td><a href="{{ url_for('job_status', job_id=job.id) }}">{{ job.job_name or job.id }}</a></td>
+      <td>{{ job.original_filename or '—' }}</td>
+      <td><span class="status {{ job.status }}">{{ job.status }}</span></td>
+      <td>{{ job.kind }}</td>
+      <td><a href="{{ url_for('log', job_id=job.id) }}">log</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

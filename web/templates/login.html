@@ -1,0 +1,13 @@
+{% extends "base.html" %}
+{% block title %}Returning User | MyMechEngAgency{% endblock %}
+{% block content %}
+<h1>Returning User</h1>
+<form method="post" class="panel-form narrow-form">
+  <label>MyAgency Handle</label>
+  <input type="text" name="handle" placeholder="MECH-7QK2M9" required>
+  <label>Access Code</label>
+  <input type="text" name="access_code" placeholder="A7XF91" required>
+  <button type="submit">Show My Jobs</button>
+</form>
+<p class="hint">No handle yet? <a href="{{ url_for('new_user') }}">Create a new MyAgency ID</a>.</p>
+{% endblock %}

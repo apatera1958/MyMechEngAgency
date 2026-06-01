@@ -1,0 +1,94 @@
+# ============================================================
+# Agency v1 configuration
+# ============================================================
+
+# ----------------------------
+# Model Routing
+# ----------------------------
+# Separate models for Solve vs. core Agency stages
+# (Compare, Recommend, Report, Chat).
+# You can adjust these as you like.
+# solve_model: gpt-5-2025-08-07
+solve_model: gpt-5.4-2026-03-05
+# NOTE solve_model must be compatible with Code Interpreter Tool
+# core_model: gpt-5-2025-08-07
+core_model: gpt-5.4-2026-03-05
+# core_model: gpt-5-pro-2025-10-06
+
+
+# Backwards-compatible default (used if solve_model missing)
+model: gpt-5-2025-08-07
+
+# Reasoning effort hints (used in system messages only)
+solve_reasoning_effort: medium   # less aggressive for Solve agents
+core_reasoning_effort: high      # deeper reasoning for Compare/Recommend/Report/Chat
+
+# None = model default
+temperature: null
+
+# ----------------------------
+# Global timeout for ANY GPT call (seconds)
+# ----------------------------
+# e.g. 40 minutes = 2400 seconds
+timeout_seconds: 2400
+
+# ----------------------------
+# Parallelism (Solve concurrency)
+# ----------------------------
+# solves_concurrency = 0  -> sequential Solve agents (no ProcessPool)
+# solves_concurrency >= 1 -> ProcessPool with that many workers
+parallel:
+  solves_concurrency: 4
+
+# ----------------------------
+# PDF/Image Handling
+# ----------------------------
+images:
+  max_side: 640
+
+# ----------------------------
+# Debug Controls
+# ----------------------------
+debug:
+  include_resp: true            # full resp object? (NO for typical users)
+  include_usage_details: true    # include usage tokens per call
+  include_routing_metadata: true # include requested vs actual model per call
+
+# ----------------------------
+# Authentication
+# ----------------------------
+auth:
+  api_key_env: OPENAI_API_KEY
+
+# ----------------------------
+# Pricing (for usage summaries)
+# ----------------------------
+pricing:
+  models:
+    gpt-5-reasoning:
+      input_per_million: 1.50
+      output_per_million: 12.0
+    gpt-5:
+      input_per_million: 1.25
+      output_per_million: 10.0
+    gpt-4.1:
+      input_per_million: 1.00
+      output_per_million: 8.00
+
+# ----------------------------
+# Output Formatting
+# ----------------------------
+output:
+  datestamp_format: "%Y%m%d-%H%M%S"
+  default_max_output_tokens: 18000
+
+  # HTML rendering mode for transcript_<STAMP>.html
+  #   pre     = simple <pre> block (no MathJax, safest, fastest)
+  #   mathjax = include MathJax so LaTeX like $\dot{x}$ renders as proper math
+  html:
+    mode: mathjax     # change to "mathjax" when you want full TeX rendering
+
+# ----------------------------
+# Platform
+# ----------------------------
+platform: Mac   # Mac | Engaging | linux

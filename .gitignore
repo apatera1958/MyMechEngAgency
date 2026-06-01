@@ -1,0 +1,36 @@
+# Secrets
+secrets/openai.env
+!secrets/.gitkeep
+!secrets/openai.env.example
+*.pem
+*.key
+.env
+
+# Local environments / installers
+miniforge3/
+.venv/
+venv/
+
+# Runtime data
+uploads/*
+results/*
+jobs/*
+logs/*
+!uploads/.gitkeep
+!results/.gitkeep
+!jobs/.gitkeep
+!logs/.gitkeep
+*.db
+*.sqlite
+
+# Python / OS / editor
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.DS_Store
+.vscode/
+.idea/
+
+# Archives
+*.zip
+*.tar.gz

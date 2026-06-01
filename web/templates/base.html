@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}MyMechEngAgency{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <header class="site-header">
+    <div class="brand"><a href="{{ url_for('home') }}">MyMechEngAgency</a></div>
+    <nav>
+      <a href="{{ url_for('home') }}">Home</a>
+      <a href="{{ url_for('about') }}">Background</a>
+      <a href="{{ url_for('submit') }}">Submit PDF</a>
+      <a href="{{ url_for('jobs') }}">My Jobs</a>
+      <a href="{{ url_for('admin') }}">Admin</a>
+      {% if session.get('user_id') %}<a href="{{ url_for('logout') }}">Sign out</a>{% endif %}
+    </nav>
+  </header>
+  <main>
+    {% with messages = get_flashed_messages() %}
+      {% if messages %}
+        <div class="flash">
+          {% for message in messages %}<p>{{ message }}</p>{% endfor %}
+        </div>
+      {% endif %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer>
+    <p>Prototype web front end for MyMechEngAgency. Demo jobs are retained for a limited time.</p>
+  </footer>
+</body>
+</html>

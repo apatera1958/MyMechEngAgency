@@ -1,0 +1,12 @@
+name: myagency-server
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - pyyaml
+  - flask
+  - werkzeug
+  - pypdf
+  - pip:
+      - openai

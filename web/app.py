@@ -9,7 +9,7 @@ from pathlib import Path
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_file, abort, flash, session
 from werkzeug.utils import secure_filename
-import db
+from . import db
 
 ROOT = Path(__file__).resolve().parents[1]
 UPLOADS = ROOT / "uploads"

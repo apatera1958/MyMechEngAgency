@@ -111,6 +111,106 @@ def _extract_text(resp) -> str:
     return _unroll_text(str(d)).strip()
 
 
+
+def _iter_dicts(obj):
+    """Yield every dict in a nested Responses API object."""
+    if isinstance(obj, dict):
+        yield obj
+        for v in obj.values():
+            yield from _iter_dicts(v)
+    elif isinstance(obj, list):
+        for v in obj:
+            yield from _iter_dicts(v)
+
+
+def _extract_code_from_ci_item(item: dict) -> str:
+    """Extract code source from several observed Responses API shapes."""
+    candidates = []
+    for key in ("code", "input", "source"):
+        v = item.get(key)
+        if isinstance(v, str):
+            candidates.append(v)
+    action = item.get("action")
+    if isinstance(action, dict):
+        for key in ("code", "input", "source"):
+            v = action.get(key)
+            if isinstance(v, str):
+                candidates.append(v)
+    for c in candidates:
+        c = _unroll_text(c)
+        if c.strip():
+            return c
+    return ""
+
+
+def _extract_logs_from_outputs(outputs) -> list[str]:
+    logs: list[str] = []
+    if not isinstance(outputs, list):
+        return logs
+    for o in outputs:
+        if not isinstance(o, dict):
+            continue
+        typ = o.get("type")
+        if typ == "logs" and isinstance(o.get("logs"), str):
+            logs.append(_unroll_text(o.get("logs", "")))
+        # Some SDK/API variants put text-ish outputs in other fields.
+        elif typ in {"output_text", "text"} and isinstance(o.get("text"), str):
+            logs.append(_unroll_text(o.get("text", "")))
+        elif isinstance(o.get("content"), str):
+            logs.append(_unroll_text(o.get("content", "")))
+    return [x for x in logs if x.strip()]
+
+
+def _extract_code_interpreter_sections(resp) -> str:
+    """
+    Robustly extract code-interpreter code/log blocks, including nested variants.
+
+    The core client handles the common top-level shape. This catches additional
+    Responses API shapes seen in web continuation runs without changing core.
+    """
+    d = _resp_to_dict(resp)
+    if d is None:
+        return ""
+    parts: list[str] = []
+    seen: set[str] = set()
+    idx = 0
+    for item in _iter_dicts(d):
+        if item.get("type") != "code_interpreter_call":
+            continue
+        code = _extract_code_from_ci_item(item)
+        logs = _extract_logs_from_outputs(item.get("outputs") or [])
+        if not code and not logs:
+            continue
+        sig = json.dumps({"code": code, "logs": logs}, sort_keys=True, default=str)
+        if sig in seen:
+            continue
+        seen.add(sig)
+        idx += 1
+        parts.append(f"## Code Interpreter call #{idx}\n")
+        if code.strip():
+            parts.append("### Code\n")
+            parts.append(f"```python\n{code}\n```\n")
+        if logs:
+            for log_no, logtxt in enumerate(logs, start=1):
+                label = "### Logs" if len(logs) == 1 else f"### Logs {log_no}"
+                parts.append(label + "\n")
+                parts.append(f"```text\n{logtxt}\n```\n")
+        else:
+            parts.append("_No log outputs attached._\n")
+    return "\n".join(parts).strip()
+
+
+def _merge_answer_with_ci(resp) -> str:
+    """Return assistant text plus any missing code-interpreter sections."""
+    if _core_extract_text_from_resp is not None:
+        base = _core_extract_text_from_resp(resp) or ""
+    else:
+        base = _extract_text(resp) or ""
+    ci = _extract_code_interpreter_sections(resp)
+    if ci and "Code Interpreter call" not in base:
+        return (base.rstrip() + "\n\n" + ci).strip()
+    return base.strip() or ci.strip() or "(no answer)"
+
 def _load_cfg() -> dict:
     cfg_path = CORE / "config.yaml"
     if not cfg_path.exists():
@@ -223,10 +323,7 @@ def run_continuation(prob_dir: Path, stamp: str, question: str) -> tuple[str, Pa
     except Exception:
         pass
 
-    if _core_extract_text_from_resp is not None:
-        answer = _core_extract_text_from_resp(resp) or "(no answer)"
-    else:
-        answer = _extract_text(resp) or "(no answer)"
+    answer = _merge_answer_with_ci(resp)
 
     follow_no = _next_follow_on_number(html_path)
     when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

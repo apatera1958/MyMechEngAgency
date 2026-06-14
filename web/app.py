@@ -116,6 +116,19 @@ def _before_request():
         _cleanup_old_jobs()
 
 
+@app.after_request
+def _no_cache_for_dynamic_pages(response):
+    """Avoid stale job/status pages in browsers and on Render/proxies."""
+    try:
+        if request.endpoint not in {"static"}:
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+    except Exception:
+        pass
+    return response
+
+
 @app.route("/")
 def home():
     return render_template(

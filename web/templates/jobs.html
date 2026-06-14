@@ -6,7 +6,7 @@
 <p><a class="button" href="{{ url_for('submit') }}">Submit New Problem</a></p>
 {% if jobs and jobs|length > 0 %}
 <table>
-  <thead><tr><th>Created</th><th>Job name</th><th>PDF file</th><th>Kind</th><th>Status</th><th>Bundle</th></tr></thead>
+  <thead><tr><th>Created</th><th>Job name</th><th>PDF file</th><th>Kind</th><th>Status</th><th>Result</th></tr></thead>
   <tbody>
   {% for job in jobs %}
     <tr>
@@ -15,7 +15,7 @@
       <td>{{ job.original_filename or '—' }}</td>
       <td>{{ job.kind }}</td>
       <td><span class="status {{ job.status }}">{{ job.status }}</span></td>
-      <td>{% if job.result_html %}<a href="{{ url_for('download', job_id=job.id) }}">Bundle.zip</a>{% else %}—{% endif %}</td>
+      <td>{% if job.result_html %}<a href="{{ url_for('download', job_id=job.id) }}">Download Bundle</a>{% else %}—{% endif %}</td>
     </tr>
   {% endfor %}
   </tbody>

@@ -23,7 +23,6 @@
 <p>
   <a class="button secondary" href="{{ url_for('log', job_id=job.id) }}">View log</a>
   {% if job.result_html %}
-    <a class="button secondary" href="{{ url_for('result', job_id=job.id) }}">View HTML transcript</a>
     <a class="button" href="{{ url_for('download', job_id=job.id) }}">Download Bundle.zip</a>
   {% endif %}
 </p>

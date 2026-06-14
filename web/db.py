@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     job_name TEXT,
     owner_email TEXT,
     access_code_hash TEXT,
+    session_id TEXT,
     user_openai_key TEXT,
     requester_ip TEXT,
     original_filename TEXT,
@@ -58,6 +59,7 @@ MIGRATION_COLUMNS = {
         "job_name": "TEXT",
         "owner_email": "TEXT",
         "access_code_hash": "TEXT",
+        "session_id": "TEXT",
         "user_openai_key": "TEXT",
         "requester_ip": "TEXT",
         "original_filename": "TEXT",
@@ -131,6 +133,26 @@ def user_jobs(user_id: int, limit: int = 50):
             (user_id, limit),
         ).fetchall()
 
+def session_jobs(session_id: str, limit: int = 50):
+    with connect() as con:
+        return con.execute(
+            """
+            SELECT * FROM jobs
+            WHERE session_id=?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (session_id, limit),
+        ).fetchall()
+
+def count_jobs_for_session_since(session_id: str, since: str) -> int:
+    with connect() as con:
+        row = con.execute(
+            "SELECT COUNT(*) AS n FROM jobs WHERE session_id=? AND created_at>=?",
+            (session_id, since),
+        ).fetchone()
+        return int(row["n"] or 0)
+
 def queued_one():
     with connect() as con:
         return con.execute(
@@ -178,6 +200,7 @@ def insert_job(**kw) -> None:
         "status": kw.get("status", "queued"), "created_at": ts, "updated_at": ts,
         "job_name": kw.get("job_name"),
         "owner_email": kw.get("owner_email"), "access_code_hash": kw.get("access_code_hash"),
+        "session_id": kw.get("session_id"),
         "user_openai_key": kw.get("user_openai_key"), "requester_ip": kw.get("requester_ip"),
         "original_filename": kw.get("original_filename"),
         "pdf_page_count": kw.get("pdf_page_count"),

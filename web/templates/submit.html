@@ -2,7 +2,7 @@
 {% block title %}Submit PDF | MyMechEngAgency{% endblock %}
 {% block content %}
 <h1>Submit a PDF</h1>
-<p class="hint">Submitting as <strong>{{ user.handle }}</strong>. Limit: {{ max_jobs_per_user_day }} jobs per 24 hours for this MyAgency ID.</p>
+<p class="hint">Jobs are associated with this browser session. Limit: {{ max_jobs_per_session_day }} jobs per 24 hours for this session.</p>
 <form method="post" enctype="multipart/form-data" class="panel-form">
   <label>Job name / short description</label>
   <input type="text" name="job_name" placeholder="Beam warmup, Heat exchanger test, Homework example 1" required>

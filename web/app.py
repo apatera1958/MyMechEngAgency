@@ -1,8 +1,5 @@
 from __future__ import annotations
-import hashlib
-import hmac
 import os
-import secrets
 import shutil
 import uuid
 from pathlib import Path
@@ -17,10 +14,11 @@ RESULTS = ROOT / "results"
 MAX_UPLOAD_MB = int(os.environ.get("MYAGENCY_MAX_UPLOAD_MB", "25"))
 MAX_PDF_PAGES = int(os.environ.get("MYAGENCY_MAX_PDF_PAGES", "5"))
 MAX_ACTIVE_JOBS = int(os.environ.get("MYAGENCY_MAX_ACTIVE_JOBS", "10"))
-MAX_JOBS_PER_USER_DAY = int(os.environ.get("MYAGENCY_MAX_JOBS_PER_USER_DAY", "3"))
+MAX_JOBS_PER_SESSION_DAY = int(os.environ.get("MYAGENCY_MAX_JOBS_PER_SESSION_DAY", "3"))
 MAX_JOBS_PER_IP_DAY = int(os.environ.get("MYAGENCY_MAX_JOBS_PER_IP_DAY", "10"))
 JOB_RETENTION_HOURS = int(os.environ.get("MYAGENCY_JOB_RETENTION_HOURS", "48"))
 BACKGROUND_SITE_URL = os.environ.get("MYAGENCY_BACKGROUND_SITE_URL", "https://sites.mit.edu/mech-eng-analysis-ai/").strip()
+SITE_PASSWORD = os.environ.get("MYAGENCY_SITE_PASSWORD", "").strip()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("MYAGENCY_FLASK_SECRET", "development-secret-change-me")
@@ -31,39 +29,30 @@ def _job_id() -> str:
     return datetime.now().strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:8]
 
 
-def _hash_access_code(handle: str, code: str) -> str:
-    secret = app.secret_key.encode("utf-8")
-    msg = ((handle or "").upper() + "\n" + (code or "")).encode("utf-8")
-    return hmac.new(secret, msg, hashlib.sha256).hexdigest()
-
-
-def _generate_handle() -> str:
-    # Avoid confusing characters like O/0 and I/1.
-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-    for _ in range(100):
-        token = "".join(secrets.choice(alphabet) for _ in range(6))
-        handle = f"MECH-{token}"
-        if not db.user_by_handle(handle):
-            return handle
-    raise RuntimeError("Could not generate a unique handle.")
-
-
-def _generate_access_code() -> str:
-    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-    return "".join(secrets.choice(alphabet) for _ in range(6))
-
-
-def _current_user():
-    uid = session.get("user_id")
-    if not uid:
-        return None
-    return db.user_by_id(int(uid))
-
-
 def _server_key_available() -> bool:
-    # start_server.sh sources secrets/openai.env; Render can set OPENAI_API_KEY directly.
     key = (os.environ.get("OPENAI_API_KEY") or "").strip()
     return bool(key)
+
+
+def _ensure_session_id() -> str:
+    sid = session.get("session_id")
+    if not sid:
+        sid = uuid.uuid4().hex
+        session["session_id"] = sid
+    return sid
+
+
+def _is_authenticated() -> bool:
+    # If no site password is configured, the site is open.
+    return (not SITE_PASSWORD) or bool(session.get("site_ok"))
+
+
+def _require_auth():
+    if not _is_authenticated():
+        flash("Please enter the site password.")
+        return redirect(url_for("enter"))
+    _ensure_session_id()
+    return None
 
 
 def _pdf_page_count(pdf_path: Path) -> int:
@@ -90,7 +79,6 @@ def _optional_upload(field_name: str, target_path: Path, allowed_suffixes: tuple
 
 
 def _client_ip() -> str:
-    # For Render/proxies, X-Forwarded-For is typical. For local testing, remote_addr is fine.
     xff = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
     return xff or request.remote_addr or "unknown"
 
@@ -102,7 +90,6 @@ def _cleanup_old_jobs() -> None:
         ids.append(job["id"])
         try:
             if job["problem_dir"]:
-                # problem_dir is .../results/<jobid>/Problem, so remove the parent job folder.
                 p = Path(job["problem_dir"])
                 job_root = p.parent if p.name == "Problem" else p
                 if job_root.exists() and RESULTS in job_root.parents:
@@ -112,18 +99,31 @@ def _cleanup_old_jobs() -> None:
     db.delete_jobs(ids)
 
 
+def _latest_bundle(prob_dir: Path | str | None) -> Path | None:
+    if not prob_dir:
+        return None
+    p = Path(prob_dir)
+    if not p.exists():
+        return None
+    bundles = sorted(p.glob("Bundle_*.zip"), key=lambda x: x.stat().st_mtime, reverse=True)
+    return bundles[0] if bundles else None
+
+
 @app.before_request
 def _before_request():
     db.init_db()
-    # Lightweight cleanup; sufficient for the prototype. Later this can be a scheduled task.
     if request.endpoint not in {"static", "log"}:
         _cleanup_old_jobs()
 
 
 @app.route("/")
 def home():
-    user = _current_user()
-    return render_template("home.html", background_site_url=BACKGROUND_SITE_URL, user=user)
+    return render_template(
+        "home.html",
+        background_site_url=BACKGROUND_SITE_URL,
+        authenticated=_is_authenticated(),
+        site_password_required=bool(SITE_PASSWORD),
+    )
 
 
 @app.route("/about")
@@ -131,57 +131,44 @@ def about():
     return render_template("about.html", background_site_url=BACKGROUND_SITE_URL)
 
 
-@app.route("/new-user", methods=["GET", "POST"])
-def new_user():
-    if request.method == "GET":
-        return render_template("new_user.html")
-    handle = _generate_handle()
-    access_code = _generate_access_code()
-    user = db.create_user(handle, _hash_access_code(handle, access_code))
-    session["user_id"] = int(user["id"])
-    session["handle"] = handle
-    return render_template("credentials.html", handle=handle, access_code=access_code)
+@app.route("/enter", methods=["GET", "POST"])
+def enter():
+    if not SITE_PASSWORD:
+        session["site_ok"] = True
+        _ensure_session_id()
+        return redirect(url_for("home"))
+    if request.method == "POST":
+        if (request.form.get("password") or "") == SITE_PASSWORD:
+            session["site_ok"] = True
+            _ensure_session_id()
+            flash("Site access granted.")
+            return redirect(url_for("submit"))
+        flash("Incorrect site password.")
+    return render_template("enter.html")
 
 
-@app.route("/login", methods=["GET", "POST"])
-def login():
-    if request.method == "GET":
-        return render_template("login.html")
-    handle = (request.form.get("handle") or "").strip().upper()
-    access_code = (request.form.get("access_code") or "").strip().upper()
-    user = db.user_by_handle(handle)
-    if not user or user["access_code_hash"] != _hash_access_code(handle, access_code):
-        flash("Unknown handle/access-code combination.")
-        return redirect(url_for("login"))
-    session["user_id"] = int(user["id"])
-    session["handle"] = handle
-    flash("Signed in.")
-    return redirect(url_for("jobs"))
-
-
-@app.route("/logout")
-def logout():
+@app.route("/reset-session")
+def reset_session():
     session.clear()
-    flash("Signed out.")
+    flash("Session cleared.")
     return redirect(url_for("home"))
 
 
 @app.route("/submit", methods=["GET", "POST"])
 def submit():
-    user = _current_user()
-    if not user:
-        flash("Create a MyAgency ID or sign in before submitting a problem.")
-        return redirect(url_for("home"))
+    auth = _require_auth()
+    if auth:
+        return auth
+    sid = _ensure_session_id()
 
     server_key = _server_key_available()
     if request.method == "GET":
         return render_template(
             "submit.html",
-            user=user,
             max_upload_mb=MAX_UPLOAD_MB,
             max_pdf_pages=MAX_PDF_PAGES,
             server_key_available=server_key,
-            max_jobs_per_user_day=MAX_JOBS_PER_USER_DAY,
+            max_jobs_per_session_day=MAX_JOBS_PER_SESSION_DAY,
         )
 
     if db.count_active_jobs() >= MAX_ACTIVE_JOBS:
@@ -189,8 +176,8 @@ def submit():
         return redirect(url_for("jobs"))
 
     since = db.cutoff(24)
-    if db.count_jobs_for_user_since(int(user["id"]), since) >= MAX_JOBS_PER_USER_DAY:
-        flash(f"This MyAgency ID has reached the limit of {MAX_JOBS_PER_USER_DAY} jobs in 24 hours.")
+    if db.count_jobs_for_session_since(sid, since) >= MAX_JOBS_PER_SESSION_DAY:
+        flash(f"This browser session has reached the limit of {MAX_JOBS_PER_SESSION_DAY} jobs in 24 hours.")
         return redirect(url_for("jobs"))
 
     ip = _client_ip()
@@ -252,7 +239,7 @@ def submit():
 
     db.insert_job(
         id=jid,
-        user_id=int(user["id"]),
+        session_id=sid,
         kind="analysis",
         status="queued",
         job_name=job_name,
@@ -274,30 +261,40 @@ def submit():
 
 @app.route("/jobs")
 def jobs():
-    user = _current_user()
-    if not user:
-        flash("Sign in with your MyAgency ID to view jobs.")
-        return redirect(url_for("login"))
-    return render_template("jobs.html", user=user, jobs=db.user_jobs(int(user["id"]), 50), retention_hours=JOB_RETENTION_HOURS)
+    auth = _require_auth()
+    if auth:
+        return auth
+    sid = _ensure_session_id()
+    return render_template("jobs.html", jobs=db.session_jobs(sid, 50), retention_hours=JOB_RETENTION_HOURS)
+
+
+def _session_can_access(job) -> bool:
+    if not job:
+        return False
+    return bool(job["session_id"]) and job["session_id"] == session.get("session_id")
 
 
 @app.route("/job/<job_id>")
 def job_status(job_id: str):
+    auth = _require_auth()
+    if auth:
+        return auth
     job = db.one(job_id)
-    if not job:
+    if not _session_can_access(job):
         abort(404)
     parent = db.one(job["parent_id"]) if job["parent_id"] else None
-    return render_template("job_status.html", job=job, parent=parent)
+    bundle = _latest_bundle(job["prob_dir"])
+    return render_template("job_status.html", job=job, parent=parent, bundle=bundle)
 
 
 @app.route("/job/<job_id>/continue", methods=["POST"])
 def continue_job(job_id: str):
-    user = _current_user()
+    auth = _require_auth()
+    if auth:
+        return auth
     parent = db.one(job_id)
-    if not parent:
+    if not _session_can_access(parent):
         abort(404)
-    if not user or int(parent["user_id"] or -1) != int(user["id"]):
-        abort(403)
     if parent["status"] != "complete":
         flash("Continuation is available only after the selected job is complete.")
         return redirect(url_for("job_status", job_id=job_id))
@@ -309,11 +306,11 @@ def continue_job(job_id: str):
     jid = _job_id()
     db.insert_job(
         id=jid,
-        user_id=int(user["id"]),
+        session_id=session["session_id"],
         kind="continuation",
         parent_id=job_id,
         status="queued",
-        job_name=(parent["job_name"] or "Job") + " — follow-up",
+        job_name=(parent["job_name"] or "Job") + " — follow-on",
         user_openai_key=parent["user_openai_key"],
         requester_ip=_client_ip(),
         original_filename=parent["original_filename"],
@@ -330,8 +327,11 @@ def continue_job(job_id: str):
 
 @app.route("/result/<job_id>")
 def result(job_id: str):
+    auth = _require_auth()
+    if auth:
+        return auth
     job = db.one(job_id)
-    if not job or not job["result_html"]:
+    if not _session_can_access(job) or not job["result_html"]:
         abort(404)
     path = Path(job["result_html"])
     if not path.exists():
@@ -341,19 +341,25 @@ def result(job_id: str):
 
 @app.route("/download/<job_id>")
 def download(job_id: str):
+    auth = _require_auth()
+    if auth:
+        return auth
     job = db.one(job_id)
-    if not job or not job["result_html"]:
+    if not _session_can_access(job):
         abort(404)
-    path = Path(job["result_html"])
-    if not path.exists():
+    bundle = _latest_bundle(job["prob_dir"])
+    if not bundle or not bundle.exists():
         abort(404)
-    return send_file(path, as_attachment=True, download_name=path.name)
+    return send_file(bundle, as_attachment=True, download_name=bundle.name)
 
 
 @app.route("/log/<job_id>")
 def log(job_id: str):
+    auth = _require_auth()
+    if auth:
+        return auth
     job = db.one(job_id)
-    if not job or not job["log_path"]:
+    if not _session_can_access(job) or not job["log_path"]:
         abort(404)
     path = Path(job["log_path"])
     if not path.exists():

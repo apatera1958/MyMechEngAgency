@@ -18,22 +18,22 @@
   {% if job.error %}<p class="error"><strong>Error:</strong> {{ job.error }}</p>{% endif %}
 </div>
 
-<p class="hint">Return to <a href="{{ url_for('jobs') }}">My Jobs</a> using your MyAgency ID.</p>
+<p class="hint">Return to <a href="{{ url_for('jobs') }}">Session Jobs</a>.</p>
 
 <p>
   <a class="button secondary" href="{{ url_for('log', job_id=job.id) }}">View log</a>
   {% if job.result_html %}
-    <a class="button" href="{{ url_for('result', job_id=job.id) }}">View HTML result</a>
-    <a class="button secondary" href="{{ url_for('download', job_id=job.id) }}">Download HTML</a>
+    <a class="button secondary" href="{{ url_for('result', job_id=job.id) }}">View HTML transcript</a>
+    <a class="button" href="{{ url_for('download', job_id=job.id) }}">Download Bundle.zip</a>
   {% endif %}
 </p>
 
 {% if job.status == 'complete' and job.result_html %}
 <section class="continuation">
-  <h2>Ask another follow-up question</h2>
+  <h2>Ask another follow-on question</h2>
   <form method="post" action="{{ url_for('continue_job', job_id=job.id) }}" class="panel-form">
-    <textarea name="question" rows="5" placeholder="Ask a follow-up question about this current transcript..." required></textarea>
-    <button type="submit">Queue continuation</button>
+    <textarea name="question" rows="5" placeholder="Ask a follow-on question about this current transcript..." required></textarea>
+    <button type="submit">Queue Follow-On</button>
   </form>
 </section>
 {% endif %}

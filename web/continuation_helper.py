@@ -4,6 +4,7 @@ import os
 import re
 import sys
 import json
+import zipfile
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -13,17 +14,15 @@ from openai import OpenAI
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "core"
 
-# Prefer the authoritative extraction routine from the core client so
-# continuation output is treated the same way as initial Agency output,
-# including code_interpreter_call source and logs when present.
+# Import only utility behavior from the unmodified core client.
 try:
     sys.path.insert(0, str(CORE / "client"))
     from agency_client import extract_text_from_resp as _core_extract_text_from_resp  # type: ignore
-except Exception:  # keep a local fallback below
+except Exception:
     _core_extract_text_from_resp = None
 
+
 def _unroll_text(s: str) -> str:
-    """Normalize tool code/log strings for readable transcripts."""
     if s is None:
         return ""
     s = str(s).replace("\r\n", "\n").replace("\r", "\n")
@@ -45,12 +44,7 @@ def _resp_to_dict(resp):
 
 
 def _extract_text(resp) -> str:
-    """
-    Match the core client behavior for Responses API output extraction.
-
-    In particular, include code_interpreter_call source code and logs when
-    the response includes code_interpreter_call.outputs.
-    """
+    """Fallback parser matching the core client's text/code/log extraction."""
     d = _resp_to_dict(resp)
     if d is None:
         return _unroll_text(str(resp)).strip()
@@ -112,11 +106,10 @@ def _extract_text(resp) -> str:
     md_parts.extend(ci_parts)
     if md_parts:
         return "\n".join(md_parts).strip()
-
     if d.get("output_text"):
         return _unroll_text(str(d["output_text"])).strip()
-
     return _unroll_text(str(d)).strip()
+
 
 def _load_cfg() -> dict:
     cfg_path = CORE / "config.yaml"
@@ -124,14 +117,28 @@ def _load_cfg() -> dict:
         return {}
     return yaml.safe_load(cfg_path.read_text(encoding="utf-8")) or {}
 
-def _append_panel_to_html(html_path: Path, question: str, answer: str) -> None:
+
+def _sec_id(title: str) -> str:
+    return "sec_" + re.sub(r"[^a-z0-9]+", "_", title.lower()).strip("_")
+
+
+def _next_follow_on_number(html_path: Path) -> int:
+    if not html_path.exists():
+        return 1
+    text = html_path.read_text(encoding="utf-8", errors="ignore")
+    nums = [int(m.group(1)) for m in re.finditer(r">\s*Follow-On\s+(\d+)\s*<", text)]
+    return (max(nums) + 1) if nums else 1
+
+
+def _append_panel_to_html(html_path: Path, follow_no: int, question: str, answer: str) -> None:
     when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    panel_id = "sec_followup_" + re.sub(r"[^a-z0-9]+", "_", when.lower()).strip("_")
+    title = f"Follow-On {follow_no}"
+    panel_id = f"sec_follow_on_{follow_no}"
     body = f"Time: {when}\n\nUser> {question}\n\nAgent> {answer}"
     panel = f"""
-      <button type="button" class="btn" onclick="toggle('{panel_id}')">Follow-up: {_html.escape(question[:60])}</button>
+      <button type="button" class="btn" title="{_html.escape(question, quote=True)}" onclick="toggle('{panel_id}')">{_html.escape(title)}</button>
       <div id="{panel_id}" class="panel" style="display:none;">
-        <h2>Follow-up continuation</h2>
+        <h2 title="{_html.escape(question, quote=True)}">{_html.escape(title)}</h2>
         <div class="content">{_html.escape(body)}</div>
       </div>
 """
@@ -145,18 +152,42 @@ def _append_panel_to_html(html_path: Path, question: str, answer: str) -> None:
         text += panel
     html_path.write_text(text, encoding="utf-8")
 
+
+def _rebuild_bundle(prob_dir: Path, stamp: str, html_path: Path, tx_path: Path) -> Path:
+    problem_name = prob_dir.parent.name
+    bundle_path = prob_dir / f"Bundle_{problem_name}_{stamp}.zip"
+    candidates = [
+        (html_path, html_path.name),
+        (tx_path, tx_path.name),
+        (prob_dir / "ProblemStatement.pdf", "ProblemStatement.pdf"),
+        (prob_dir / "PROBhints.txt", "PROBhints.txt"),
+        (prob_dir / "PROBgpt_models.yaml", "PROBgpt_models.yaml"),
+    ]
+    # Include raw continuation response JSON files for diagnosis and provenance.
+    for p in sorted(prob_dir.glob("continuation_resp_*.json")):
+        candidates.append((p, p.name))
+    with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as z:
+        for p, arc in candidates:
+            if p and Path(p).exists():
+                z.write(str(p), arcname=arc)
+    return bundle_path
+
+
 def run_continuation(prob_dir: Path, stamp: str, question: str) -> tuple[str, Path, Path]:
     cfg = _load_cfg()
     tx_path = prob_dir / f"transcript_{stamp}.txt"
     html_path = prob_dir / f"transcript_{stamp}.html"
     if not tx_path.exists():
         raise FileNotFoundError(f"Transcript not found: {tx_path}")
+
+    # The full augmented transcript so far, including earlier Follow-On sections.
     transcript_text = tx_path.read_text(encoding="utf-8")
 
     api_env = (cfg.get("auth") or {}).get("api_key_env", "OPENAI_API_KEY")
     if not os.environ.get(api_env):
         raise RuntimeError(f"API key environment variable {api_env} is not set")
 
+    # Use the same chat-agent instruction source as the original client.
     chat_instr_path = CORE / "Agents" / "Instruction_Chat.txt"
     if chat_instr_path.exists():
         chat_instr = chat_instr_path.read_text(encoding="utf-8")
@@ -173,7 +204,7 @@ def run_continuation(prob_dir: Path, stamp: str, question: str) -> tuple[str, Pa
     if reasoning_effort:
         input_blocks.append({"role": "system", "content": [{"type": "input_text", "text": f"Reasoning effort: {reasoning_effort}"}]})
     input_blocks.append({"role": "system", "content": [{"type": "input_text", "text": chat_instr}]})
-    input_blocks.append({"role": "user", "content": [{"type": "input_text", "text": "Here is the previous transcript from the Agency run:\n\n" + transcript_text + "\n\nNow answer this follow-up question from the user:\n\n" + question}]})
+    input_blocks.append({"role": "user", "content": [{"type": "input_text", "text": "Here is the previous transcript from the Agency run, including all follow-ons so far:\n\n" + transcript_text + "\n\nNow answer this new follow-on question from the user:\n\n" + question}]})
 
     resp = OpenAI().responses.create(
         model=model_core,
@@ -185,8 +216,6 @@ def run_continuation(prob_dir: Path, stamp: str, question: str) -> tuple[str, Pa
         temperature=temperature,
     )
 
-    # Save raw continuation response next to the transcript. This is useful for
-    # checking whether a code_interpreter_call was actually returned by the API.
     raw_path = prob_dir / f"continuation_resp_{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
     try:
         d = _resp_to_dict(resp)
@@ -199,10 +228,13 @@ def run_continuation(prob_dir: Path, stamp: str, question: str) -> tuple[str, Pa
     else:
         answer = _extract_text(resp) or "(no answer)"
 
+    follow_no = _next_follow_on_number(html_path)
     when = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with tx_path.open("a", encoding="utf-8") as f:
-        f.write(f"\n=== Web continuation ({when}) ===\n\n")
+        f.write(f"\n=== Follow-On {follow_no} ({when}) ===\n\n")
         f.write("User> " + question + "\n\n")
         f.write("Agent> " + answer + "\n\n---\n")
-    _append_panel_to_html(html_path, question, answer)
+
+    _append_panel_to_html(html_path, follow_no, question, answer)
+    _rebuild_bundle(prob_dir, stamp, html_path, tx_path)
     return answer, tx_path, html_path

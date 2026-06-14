@@ -14,9 +14,9 @@
       <a href="{{ url_for('home') }}">Home</a>
       <a href="{{ url_for('about') }}">Background</a>
       <a href="{{ url_for('submit') }}">Submit PDF</a>
-      <a href="{{ url_for('jobs') }}">My Jobs</a>
+      <a href="{{ url_for('jobs') }}">Session Jobs</a>
       <a href="{{ url_for('admin') }}">Admin</a>
-      {% if session.get('user_id') %}<a href="{{ url_for('logout') }}">Sign out</a>{% endif %}
+      <a href="{{ url_for('reset_session') }}">Reset session</a>
     </nav>
   </header>
   <main>
@@ -30,7 +30,7 @@
     {% block content %}{% endblock %}
   </main>
   <footer>
-    <p>Prototype web front end for MyMechEngAgency. Demo jobs are retained for a limited time.</p>
+    <p>Prototype web front end for MyMechEngAgency. Demo jobs are session-scoped and retained for a limited time.</p>
   </footer>
 </body>
 </html>

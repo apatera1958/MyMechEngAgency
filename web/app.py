@@ -2,6 +2,7 @@ from __future__ import annotations
 import os
 import shutil
 import uuid
+import re
 from pathlib import Path
 from datetime import datetime
 from flask import Flask, render_template, request, redirect, url_for, send_file, abort, flash, session
@@ -109,6 +110,38 @@ def _latest_bundle(prob_dir: Path | str | None) -> Path | None:
     return bundles[0] if bundles else None
 
 
+def _next_follow_on_number_for_job(job) -> int:
+    """Return the next Follow-On number for this job's transcript/html.
+
+    This is used only for user-facing labels at queue time; the worker
+    recomputes the number from the actual transcript when it appends.
+    """
+    try:
+        html_path = Path(job["result_html"]) if job and job["result_html"] else None
+        if html_path and html_path.exists():
+            text = html_path.read_text(encoding="utf-8", errors="ignore")
+            nums = [int(m.group(1)) for m in re.finditer(r">\s*Follow-On\s+(\d+)\s*<", text)]
+            return (max(nums) + 1) if nums else 1
+    except Exception:
+        pass
+    return 1
+
+
+def _session_job_name_suggestions(session_id: str) -> list[str]:
+    """Job-name suggestions limited to the current browser session."""
+    seen: set[str] = set()
+    out: list[str] = []
+    try:
+        for job in db.session_jobs(session_id, 100):
+            name = (job["job_name"] or "").strip()
+            if name and name not in seen:
+                seen.add(name)
+                out.append(name)
+    except Exception:
+        pass
+    return out
+
+
 @app.before_request
 def _before_request():
     db.init_db()
@@ -182,6 +215,7 @@ def submit():
             max_pdf_pages=MAX_PDF_PAGES,
             server_key_available=server_key,
             max_jobs_per_session_day=MAX_JOBS_PER_SESSION_DAY,
+            job_name_suggestions=_session_job_name_suggestions(sid),
         )
 
     if db.count_active_jobs() >= MAX_ACTIVE_JOBS:
@@ -316,6 +350,7 @@ def continue_job(job_id: str):
         flash("Please enter a follow-up question.")
         return redirect(url_for("job_status", job_id=job_id))
 
+    follow_no = _next_follow_on_number_for_job(parent)
     jid = _job_id()
     db.insert_job(
         id=jid,
@@ -323,7 +358,7 @@ def continue_job(job_id: str):
         kind="continuation",
         parent_id=job_id,
         status="queued",
-        job_name=(parent["job_name"] or "Job") + " — follow-on",
+        job_name=(parent["job_name"] or "Job") + f" — Follow-On {follow_no}",
         user_openai_key=parent["user_openai_key"],
         requester_ip=_client_ip(),
         original_filename=parent["original_filename"],

@@ -354,8 +354,15 @@ def _append_panel_to_html(html_path: Path, follow_no: int, question: str, answer
     html_path.write_text(text, encoding="utf-8")
 
 
-def _rebuild_bundle(prob_dir: Path, stamp: str, html_path: Path, tx_path: Path) -> Path:
-    problem_name = prob_dir.parent.name
+def _safe_bundle_name(text: str | None, fallback: str = "Problem") -> str:
+    text = (text or fallback).strip()
+    text = re.sub(r"\.[Pp][Dd][Ff]$", "", text)
+    text = re.sub(r"[^A-Za-z0-9._-]+", "_", text).strip("._-")
+    return (text or fallback)[:60]
+
+
+def _rebuild_bundle(prob_dir: Path, stamp: str, html_path: Path, tx_path: Path, problem_label: str | None = None) -> Path:
+    problem_name = _safe_bundle_name(problem_label or prob_dir.parent.name)
     bundle_path = prob_dir / f"Bundle_{problem_name}_{stamp}.zip"
     candidates = [
         (html_path, html_path.name),
@@ -364,9 +371,10 @@ def _rebuild_bundle(prob_dir: Path, stamp: str, html_path: Path, tx_path: Path) 
         (prob_dir / "PROBhints.txt", "PROBhints.txt"),
         (prob_dir / "PROBgpt_models.yaml", "PROBgpt_models.yaml"),
     ]
-    # Include raw continuation response JSON files for diagnosis and provenance.
-    for p in sorted(prob_dir.glob("continuation_resp_*.json")):
-        candidates.append((p, p.name))
+    # Include raw continuation response/debug JSON files for diagnosis and provenance.
+    for pattern in ("continuation_resp_*.json", "continuation_ci_debug_*.json"):
+        for p in sorted(prob_dir.glob(pattern)):
+            candidates.append((p, p.name))
     with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as z:
         for p, arc in candidates:
             if p and Path(p).exists():

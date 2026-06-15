@@ -3,6 +3,8 @@ import os
 import subprocess
 import sys
 import time
+import re
+import zipfile
 from pathlib import Path
 from datetime import datetime
 import db
@@ -36,6 +38,39 @@ def _discover_stamp(prob_dir: Path, fallback: str | None = None) -> tuple[str | 
         return stamp, txts[0], prob_dir / f"transcript_{stamp}.html"
     return fallback, None, None
 
+
+def _safe_name(text: str | None, fallback: str = "Problem") -> str:
+    text = (text or fallback).strip()
+    text = re.sub(r"\.[Pp][Dd][Ff]$", "", text)
+    text = re.sub(r"[^A-Za-z0-9._-]+", "_", text).strip("._-")
+    return (text or fallback)[:60]
+
+
+def _write_bundle(prob_dir: Path, stamp: str | None, html_path: Path | None, tx_path: Path | None, label: str | None) -> Path | None:
+    """Create a user-facing Bundle_<problem-name>_<stamp>.zip without modifying core code."""
+    if not stamp:
+        return None
+    safe = _safe_name(label)
+    bundle_path = prob_dir / f"Bundle_{safe}_{stamp}.zip"
+    candidates = [
+        (html_path, html_path.name if html_path else None),
+        (tx_path, tx_path.name if tx_path else None),
+        (prob_dir / "ProblemStatement.pdf", "ProblemStatement.pdf"),
+        (prob_dir / "PROBhints.txt", "PROBhints.txt"),
+        (prob_dir / "PROBgpt_models.yaml", "PROBgpt_models.yaml"),
+    ]
+    for pattern in ("continuation_resp_*.json", "continuation_ci_debug_*.json"):
+        for q in sorted(prob_dir.glob(pattern)):
+            candidates.append((q, q.name))
+    try:
+        with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as z:
+            for p, arc in candidates:
+                if p and arc and Path(p).exists():
+                    z.write(str(p), arcname=arc)
+        return bundle_path
+    except Exception:
+        return None
+
 def run_analysis(job) -> None:
     load_openai_env()
     jid = job["id"]
@@ -66,6 +101,7 @@ def run_analysis(job) -> None:
     if not html or not html.exists():
         db.update_job(jid, status="failed", error="Run completed but transcript HTML was not found")
         return
+    _write_bundle(prob_dir, stamp2 or stamp, html, tx, job["job_name"] or job["original_filename"])
     db.update_job(jid, status="complete", stamp=stamp2, transcript_txt=str(tx) if tx else None, result_html=str(html))
 
 def run_cont(job) -> None:

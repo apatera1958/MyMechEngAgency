@@ -5,7 +5,13 @@
 <p class="hint">Jobs are associated with this browser session. Limit: {{ max_jobs_per_session_day }} jobs per 24 hours for this session.</p>
 <form method="post" enctype="multipart/form-data" class="panel-form">
   <label>Job name / short description</label>
-  <input type="text" name="job_name" placeholder="Beam warmup, Heat exchanger test, Homework example 1" required>
+  <input type="text" name="job_name" list="current-session-job-names" autocomplete="off" placeholder="Beam warmup, Heat exchanger test, Homework example 1" required>
+  <datalist id="current-session-job-names">
+    {% for name in job_name_suggestions or [] %}
+      <option value="{{ name }}"></option>
+    {% endfor %}
+  </datalist>
+  <p class="hint">Suggestions, if any, are limited to this browser session.</p>
 
   <label>PDF problem statement</label>
   <input type="file" name="pdf" accept="application/pdf,.pdf" required>

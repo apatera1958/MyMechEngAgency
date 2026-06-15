@@ -163,25 +163,82 @@ def _extract_logs_from_outputs(outputs) -> list[str]:
 
 def _extract_code_interpreter_sections(resp) -> str:
     """
-    Robustly extract code-interpreter code/log blocks, including nested variants.
+    Extract code-interpreter code/log blocks from the Responses API object.
 
-    The core client handles the common top-level shape. This catches additional
-    Responses API shapes seen in web continuation runs without changing core.
+    This intentionally starts from the same top-level shape handled by the
+    core client, but also accepts variants seen in deployed continuation runs:
+      - type == "code_interpreter_call"
+      - type strings containing "code_interpreter"
+      - code inside action.code/input/source
+      - outputs in outputs, output, result, results
+      - logs in logs, text, output, content
     """
     d = _resp_to_dict(resp)
     if d is None:
         return ""
+
     parts: list[str] = []
     seen: set[str] = set()
     idx = 0
+
+    def _type(obj: dict) -> str:
+        return str(obj.get("type") or "")
+
+    def _candidate_outputs(item: dict):
+        outs = []
+        for key in ("outputs", "output", "results", "result"):
+            v = item.get(key)
+            if isinstance(v, list):
+                outs.extend(v)
+            elif isinstance(v, dict):
+                outs.append(v)
+        action = item.get("action")
+        if isinstance(action, dict):
+            for key in ("outputs", "output", "results", "result"):
+                v = action.get(key)
+                if isinstance(v, list):
+                    outs.extend(v)
+                elif isinstance(v, dict):
+                    outs.append(v)
+        return outs
+
+    def _logs_from_any(obj) -> list[str]:
+        logs: list[str] = []
+        if isinstance(obj, dict):
+            for key in ("logs", "text", "output", "content", "stdout", "stderr"):
+                v = obj.get(key)
+                if isinstance(v, str) and v.strip():
+                    logs.append(_unroll_text(v))
+            # Some outputs place text in nested arrays/objects.
+            for key in ("items", "data", "parts"):
+                v = obj.get(key)
+                if isinstance(v, (list, dict)):
+                    logs.extend(_logs_from_any(v))
+        elif isinstance(obj, list):
+            for v in obj:
+                logs.extend(_logs_from_any(v))
+        return [x for x in logs if x.strip()]
+
+    # First pass: explicit code_interpreter call objects.
     for item in _iter_dicts(d):
-        if item.get("type") != "code_interpreter_call":
+        if not isinstance(item, dict):
             continue
+        typ = _type(item)
+        if "code_interpreter" not in typ:
+            continue
+
         code = _extract_code_from_ci_item(item)
-        logs = _extract_logs_from_outputs(item.get("outputs") or [])
+        outputs = _candidate_outputs(item)
+        logs = _logs_from_any(outputs)
+        # Some shapes put logs directly on the call object.
+        if not logs:
+            logs = _logs_from_any(item)
+            # Avoid treating the code itself as a log when direct-scanning.
+            logs = [x for x in logs if x.strip() != code.strip()]
+
         if not code and not logs:
             continue
-        sig = json.dumps({"code": code, "logs": logs}, sort_keys=True, default=str)
+        sig = json.dumps({"typ": typ, "code": code, "logs": logs}, sort_keys=True, default=str)
         if sig in seen:
             continue
         seen.add(sig)
@@ -197,7 +254,51 @@ def _extract_code_interpreter_sections(resp) -> str:
                 parts.append(f"```text\n{logtxt}\n```\n")
         else:
             parts.append("_No log outputs attached._\n")
+
+    # Second pass: defensive fallback for dicts with obvious code/log keys even
+    # if the API/SDK used an unexpected type label.
+    if not parts:
+        for item in _iter_dicts(d):
+            if not isinstance(item, dict):
+                continue
+            code = _extract_code_from_ci_item(item)
+            outputs = _candidate_outputs(item)
+            logs = _logs_from_any(outputs)
+            if code and (outputs or logs):
+                sig = json.dumps({"code": code, "logs": logs}, sort_keys=True, default=str)
+                if sig in seen:
+                    continue
+                seen.add(sig)
+                idx += 1
+                parts.append(f"## Code Interpreter call #{idx}\n")
+                parts.append("### Code\n")
+                parts.append(f"```python\n{code}\n```\n")
+                if logs:
+                    parts.append("### Logs\n")
+                    parts.append(f"```text\n{'\n\n'.join(logs)}\n```\n")
+
     return "\n".join(parts).strip()
+
+
+def _ci_debug_summary(resp) -> dict:
+    """Small diagnostic summary saved beside continuation_resp_*.json."""
+    d = _resp_to_dict(resp)
+    if d is None:
+        return {"response_dict": False}
+    items = []
+    for item in _iter_dicts(d):
+        if not isinstance(item, dict):
+            continue
+        typ = str(item.get("type") or "")
+        if "code_interpreter" in typ or any(k in item for k in ("code", "outputs", "logs")):
+            items.append({
+                "type": typ,
+                "keys": sorted(list(item.keys())),
+                "has_code": bool(_extract_code_from_ci_item(item).strip()),
+                "has_outputs": bool(_candidate_outputs(item)),
+                "direct_log_keys": [k for k in ("logs", "text", "output", "content", "stdout", "stderr") if isinstance(item.get(k), str)],
+            })
+    return {"response_dict": True, "candidate_items": items[:100]}
 
 
 def _merge_answer_with_ci(resp) -> str:
@@ -316,10 +417,14 @@ def run_continuation(prob_dir: Path, stamp: str, question: str) -> tuple[str, Pa
         temperature=temperature,
     )
 
-    raw_path = prob_dir / f"continuation_resp_{datetime.now().strftime('%Y%m%d-%H%M%S')}.json"
+    raw_stamp = datetime.now().strftime('%Y%m%d-%H%M%S')
+    raw_path = prob_dir / f"continuation_resp_{raw_stamp}.json"
     try:
         d = _resp_to_dict(resp)
         raw_path.write_text(json.dumps(d if d is not None else str(resp), default=str, indent=2), encoding="utf-8")
+        (prob_dir / f"continuation_ci_debug_{raw_stamp}.json").write_text(
+            json.dumps(_ci_debug_summary(resp), default=str, indent=2), encoding="utf-8"
+        )
     except Exception:
         pass
 

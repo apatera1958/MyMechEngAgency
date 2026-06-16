@@ -362,6 +362,14 @@ def _safe_bundle_name(text: str | None, fallback: str = "Problem") -> str:
 
 
 def _rebuild_bundle(prob_dir: Path, stamp: str, html_path: Path, tx_path: Path, problem_label: str | None = None) -> Path:
+    if not problem_label:
+        pattern = f"Bundle_*_{stamp}.zip"
+        for p in sorted(prob_dir.glob(pattern)):
+            m = re.match(rf"Bundle_(.+)_{re.escape(stamp)}\.zip$", p.name)
+            if m:
+                problem_label = m.group(1)
+                break
+
     problem_name = _safe_bundle_name(problem_label or prob_dir.parent.name)
     bundle_path = prob_dir / f"Bundle_{problem_name}_{stamp}.zip"
     candidates = [

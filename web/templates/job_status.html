@@ -21,10 +21,18 @@
 <p class="hint">Return to <a href="{{ url_for('jobs') }}">Session Jobs</a>.</p>
 
 <p>
-  <a class="button secondary" href="{{ url_for('log', job_id=job.id) }}">View log</a>
   {% if job.result_html %}
-    <a class="button" href="{{ url_for('download', job_id=job.id) }}">Download Bundle.zip</a>
+  {% if is_current_bundle %}
+    <a class="button" href="{{ url_for('download', job_id=job.id) }}">
+      Download Current Bundle.zip
+    </a>
+  {% else %}
+    <span class="button secondary"
+          title="Superseded by a later follow-on. Download the current Bundle instead.">
+      Superseded
+    </span>
   {% endif %}
+{% endif %}
 </p>
 
 {% if job.status == 'complete' and job.result_html %}

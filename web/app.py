@@ -331,7 +331,21 @@ def job_status(job_id: str):
         abort(404)
     parent = db.one(job["parent_id"]) if job["parent_id"] else None
     bundle = _latest_bundle(job["prob_dir"])
-    return render_template("job_status.html", job=job, parent=parent, bundle=bundle)
+
+    # A job is superseded if another accessible job lists it as parent.
+    is_current_bundle = True
+    for j in db.session_jobs(session["session_id"], limit=500):
+        if j.get("parent_id") == job["id"] and _session_can_access(j):
+            is_current_bundle = False
+            break
+
+    return render_template(
+        "job_status.html",
+        job=job,
+        parent=parent,
+        bundle=bundle,
+        is_current_bundle=is_current_bundle,
+    )
 
 
 @app.route("/job/<job_id>/continue", methods=["POST"])

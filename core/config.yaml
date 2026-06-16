@@ -9,11 +9,13 @@
 # (Compare, Recommend, Report, Chat).
 # You can adjust these as you like.
 # solve_model: gpt-5-2025-08-07
-solve_model: gpt-5.4-2026-03-05
+# solve_model: gpt-5.4-2026-03-05
+solve_model: gpt-5.5-2026-04-23
 # NOTE solve_model must be compatible with Code Interpreter Tool
 # core_model: gpt-5-2025-08-07
-core_model: gpt-5.4-2026-03-05
+# core_model: gpt-5.4-2026-03-05
 # core_model: gpt-5-pro-2025-10-06
+core_model: gpt-5.5-2026-04-23
 
 
 # Backwards-compatible default (used if solve_model missing)

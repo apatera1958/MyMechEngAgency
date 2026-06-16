@@ -333,19 +333,20 @@ def job_status(job_id: str):
     bundle = _latest_bundle(job["prob_dir"])
 
     # The current bundle belongs to the newest job associated
-# with this transcript/problem directory.
+    # with this transcript/stamp. Continuations inherit parent["stamp"].
     is_current_bundle = True
 
-    this_prob_dir = job["prob_dir"]
+    this_stamp = job["stamp"]
 
-    related_jobs = [
-        j for j in db.session_jobs(session["session_id"], limit=500)
-        if j["prob_dir"] == this_prob_dir
-    ]
+    if this_stamp:
+        related_jobs = [
+            j for j in db.session_jobs(session["session_id"], limit=500)
+            if j["stamp"] == this_stamp
+        ]
 
-    if related_jobs:
-        latest_related = max(related_jobs, key=lambda j: j["created_at"])
-        is_current_bundle = (latest_related["id"] == job["id"])
+        if related_jobs:
+            latest_related = max(related_jobs, key=lambda j: j["created_at"])
+            is_current_bundle = (latest_related["id"] == job["id"])
 
     return render_template(
         "job_status.html",

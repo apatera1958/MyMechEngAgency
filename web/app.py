@@ -335,7 +335,7 @@ def job_status(job_id: str):
     # A job is superseded if another accessible job lists it as parent.
     is_current_bundle = True
     for j in db.session_jobs(session["session_id"], limit=500):
-        if j.get("parent_id") == job["id"] and _session_can_access(j):
+        if j["parent_id"] == job["id"] and _session_can_access(j):
             is_current_bundle = False
             break
 

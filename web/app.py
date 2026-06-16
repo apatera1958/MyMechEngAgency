@@ -332,12 +332,20 @@ def job_status(job_id: str):
     parent = db.one(job["parent_id"]) if job["parent_id"] else None
     bundle = _latest_bundle(job["prob_dir"])
 
-    # A job is superseded if another accessible job lists it as parent.
+    # The current bundle belongs to the newest job associated
+# with this transcript/problem directory.
     is_current_bundle = True
-    for j in db.session_jobs(session["session_id"], limit=500):
-        if j["parent_id"] == job["id"] and _session_can_access(j):
-            is_current_bundle = False
-            break
+
+    this_prob_dir = job["prob_dir"]
+
+    related_jobs = [
+        j for j in db.session_jobs(session["session_id"], limit=500)
+        if j["prob_dir"] == this_prob_dir
+    ]
+
+    if related_jobs:
+        latest_related = max(related_jobs, key=lambda j: j["created_at"])
+        is_current_bundle = (latest_related["id"] == job["id"])
 
     return render_template(
         "job_status.html",

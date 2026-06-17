@@ -47,11 +47,17 @@ def _safe_name(text: str | None, fallback: str = "Problem") -> str:
 
 
 def _write_bundle(prob_dir: Path, stamp: str | None, html_path: Path | None, tx_path: Path | None, label: str | None) -> Path | None:
-    """Create a user-facing Bundle_<problem-name>_<stamp>.zip without modifying core code."""
+    """Create initial user-facing Bundle_<problem-name>-0_<stamp>.zip."""
     if not stamp:
         return None
     safe = _safe_name(label)
-    bundle_path = prob_dir / f"Bundle_{safe}_{stamp}.zip"
+    # Remove any earlier Bundle for this transcript stamp before writing the current one.
+    for old in prob_dir.glob(f"Bundle_*_{stamp}.zip"):
+        try:
+            old.unlink()
+        except Exception:
+            pass
+    bundle_path = prob_dir / f"Bundle_{safe}-0_{stamp}.zip"
     candidates = [
         (html_path, html_path.name if html_path else None),
         (tx_path, tx_path.name if tx_path else None),
@@ -114,10 +120,11 @@ def run_cont(job) -> None:
     db.update_job(jid, status="running")
     try:
         with log_path.open("w", encoding="utf-8") as log:
-            log.write(f"Continuation for parent={job['parent_id']} stamp={job['stamp']}\n")
+            log.write(f"Continuation for job={jid} stamp={job['stamp']}\n")
             answer, tx, html = run_continuation(Path(job["prob_dir"]), job["stamp"], job["question"])
             log.write("\nAnswer:\n" + answer + "\n")
-        db.update_job(jid, status="complete", transcript_txt=str(tx), result_html=str(html))
+        # Return the visible row to analysis/complete after the follow-on is incorporated.
+        db.update_job(jid, kind="analysis", status="complete", transcript_txt=str(tx), result_html=str(html), question=None)
     except Exception as e:
         db.update_job(jid, status="failed", error=str(e))
 

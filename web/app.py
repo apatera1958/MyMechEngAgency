@@ -332,28 +332,11 @@ def job_status(job_id: str):
     parent = db.one(job["parent_id"]) if job["parent_id"] else None
     bundle = _latest_bundle(job["prob_dir"])
 
-    # The current bundle belongs to the newest job associated
-    # with this transcript/stamp. Continuations inherit parent["stamp"].
-    is_current_bundle = True
-
-    this_stamp = job["stamp"]
-
-    if this_stamp:
-        related_jobs = [
-            j for j in db.session_jobs(session["session_id"], limit=500)
-            if j["stamp"] == this_stamp
-        ]
-
-        if related_jobs:
-            latest_related = max(related_jobs, key=lambda j: j["created_at"])
-            is_current_bundle = (latest_related["id"] == job["id"])
-
     return render_template(
         "job_status.html",
         job=job,
         parent=parent,
         bundle=bundle,
-        is_current_bundle=is_current_bundle,
     )
 
 
@@ -362,38 +345,31 @@ def continue_job(job_id: str):
     auth = _require_auth()
     if auth:
         return auth
-    parent = db.one(job_id)
-    if not _session_can_access(parent):
+    job = db.one(job_id)
+    if not _session_can_access(job):
         abort(404)
-    if parent["status"] != "complete":
+    if job["status"] != "complete":
         flash("Continuation is available only after the selected job is complete.")
         return redirect(url_for("job_status", job_id=job_id))
     question = (request.form.get("question") or "").strip()
     if not question:
         flash("Please enter a follow-up question.")
         return redirect(url_for("job_status", job_id=job_id))
+    if not job["stamp"] or not job["transcript_txt"] or not job["result_html"]:
+        flash("Continuation is unavailable because the transcript is not ready.")
+        return redirect(url_for("job_status", job_id=job_id))
 
-    follow_no = _next_follow_on_number_for_job(parent)
-    jid = _job_id()
-    db.insert_job(
-        id=jid,
-        session_id=session["session_id"],
+    # Reuse the same visible job row. The worker will append the follow-on
+    # to the existing transcript and rebuild the single current Bundle.
+    db.update_job(
+        job_id,
         kind="continuation",
-        parent_id=job_id,
         status="queued",
-        job_name=(parent["job_name"] or "Job") + f" — Follow-On {follow_no}",
-        user_openai_key=parent["user_openai_key"],
-        requester_ip=_client_ip(),
-        original_filename=parent["original_filename"],
-        problem_dir=parent["problem_dir"],
-        prob_dir=parent["prob_dir"],
-        stamp=parent["stamp"],
         question=question,
-        result_html=parent["result_html"],
-        transcript_txt=parent["transcript_txt"],
-        log_path=str(ROOT / "logs" / f"{jid}.log"),
+        error=None,
     )
-    return redirect(url_for("job_status", job_id=jid))
+    flash("Follow-on queued for this problem.")
+    return redirect(url_for("job_status", job_id=job_id))
 
 
 @app.route("/result/<job_id>")

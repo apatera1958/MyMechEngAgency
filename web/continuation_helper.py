@@ -361,17 +361,30 @@ def _safe_bundle_name(text: str | None, fallback: str = "Problem") -> str:
     return (text or fallback)[:60]
 
 
-def _rebuild_bundle(prob_dir: Path, stamp: str, html_path: Path, tx_path: Path, problem_label: str | None = None) -> Path:
+def _rebuild_bundle(prob_dir: Path, stamp: str, html_path: Path, tx_path: Path, follow_no: int, problem_label: str | None = None) -> Path:
     if not problem_label:
-        pattern = f"Bundle_*_{stamp}.zip"
-        for p in sorted(prob_dir.glob(pattern)):
+        # Prefer the base problem name from an existing Bundle for this transcript.
+        # Accept both new names, Bundle_Name-M_stamp.zip, and older names, Bundle_Name_stamp.zip.
+        for p in sorted(prob_dir.glob(f"Bundle_*_{stamp}.zip")):
+            m = re.match(rf"Bundle_(.+)-\d+_{re.escape(stamp)}\.zip$", p.name)
+            if m:
+                problem_label = m.group(1)
+                break
             m = re.match(rf"Bundle_(.+)_{re.escape(stamp)}\.zip$", p.name)
             if m:
                 problem_label = m.group(1)
                 break
 
     problem_name = _safe_bundle_name(problem_label or prob_dir.parent.name)
-    bundle_path = prob_dir / f"Bundle_{problem_name}_{stamp}.zip"
+
+    # Keep only the current Bundle for this transcript stamp.
+    for old in prob_dir.glob(f"Bundle_*_{stamp}.zip"):
+        try:
+            old.unlink()
+        except Exception:
+            pass
+
+    bundle_path = prob_dir / f"Bundle_{problem_name}-{follow_no}_{stamp}.zip"
     candidates = [
         (html_path, html_path.name),
         (tx_path, tx_path.name),
@@ -454,5 +467,5 @@ def run_continuation(prob_dir: Path, stamp: str, question: str) -> tuple[str, Pa
         f.write("Agent> " + answer + "\n\n---\n")
 
     _append_panel_to_html(html_path, follow_no, question, answer)
-    _rebuild_bundle(prob_dir, stamp, html_path, tx_path)
+    _rebuild_bundle(prob_dir, stamp, html_path, tx_path, follow_no=follow_no)
     return answer, tx_path, html_path

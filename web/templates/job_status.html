@@ -32,10 +32,6 @@
     <p><strong>Optional model override:</strong> {{ job.models_filename }} → <code>PROBgpt_models.yaml</code></p>
   {% endif %}
 
-  {% if job.parent_id %}
-    <p><strong>Parent job:</strong> <a href="{{ url_for('job_status', job_id=job.parent_id) }}">{{ job.parent_id }}</a></p>
-  {% endif %}
-
   {% if job.error %}
     <p class="error"><strong>Error:</strong> {{ job.error }}</p>
   {% endif %}
@@ -46,21 +42,14 @@
 <p>
   <a class="button secondary" href="{{ url_for('log', job_id=job.id) }}">View log</a>
 
-  {% if job.result_html %}
-    {% if is_current_bundle %}
-      <a class="button" href="{{ url_for('download', job_id=job.id) }}">
-        Download Current Bundle.zip
-      </a>
-    {% else %}
-      <span class="button secondary"
-            title="Superseded by a later follow-on. Download the current Bundle instead.">
-        Superseded
-      </span>
-    {% endif %}
+  {% if job.status == 'complete' and job.result_html %}
+    <a class="button" href="{{ url_for('download', job_id=job.id) }}">
+      Download Current Bundle.zip
+    </a>
   {% endif %}
 </p>
 
-{% if job.status == 'complete' and job.result_html and is_current_bundle %}
+{% if job.status == 'complete' and job.result_html %}
 <section class="continuation">
   <h2>Ask another follow-on question</h2>
   <form method="post" action="{{ url_for('continue_job', job_id=job.id) }}" class="panel-form">
@@ -68,13 +57,7 @@
     <button type="submit">Queue Follow-On</button>
   </form>
 </section>
-{% elif job.status == 'complete' and job.result_html and not is_current_bundle %}
-<p class="hint">
-  This job has been superseded by a later follow-on. Continue from the latest job in this sequence.
-</p>
-{% endif %}
-
-{% if job.status in ['queued', 'running'] %}
+{% elif job.status in ['queued', 'running'] %}
 <p class="hint">This page refreshes automatically every 5 seconds while the job is queued or running.</p>
 {% endif %}
 {% endblock %}

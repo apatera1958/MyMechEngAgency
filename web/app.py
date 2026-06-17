@@ -188,7 +188,7 @@ def enter():
             session["site_ok"] = True
             _ensure_session_id()
             flash("Site access granted.")
-            return redirect(url_for("submit"))
+            return redirect(url_for("home"))
         flash("Incorrect site password.")
     return render_template("enter.html")
 

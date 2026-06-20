@@ -1,7 +1,57 @@
 {% extends "base.html" %}
 {% block title %}Background | MyAgency{% endblock %}
 {% block content %}
+
 <h1>Background</h1>
-<p>Information on the underlying methodology may be found at</p>
-<p><a class="button secondary" href="{{ background_site_url }}">https://sites.mit.edu/mech-eng-analysis-ai/</a>.</p>
+
+<h2>Goal</h2>
+<p>
+MyMechEngAgency is open-source software developed to support rigorous,
+transparent, and reproducible mechanical engineering analysis.
+</p>
+
+<h2>Methodology</h2>
+<p>
+Information on the underlying methodology may be found at
+</p>
+<p>
+  <a class="button secondary" href="{{ background_site_url }}">
+    https://sites.mit.edu/mech-eng-analysis-ai/
+  </a>.
+</p>
+
+<h2>Software and Licensing</h2>
+<p>
+Source code is available at:
+</p>
+<p>
+  <a class="button secondary"
+     href="https://github.com/apatera1958/MyMechEngAgency"
+     target="_blank"
+     rel="noopener noreferrer">
+    https://github.com/apatera1958/MyMechEngAgency
+  </a>.
+</p>
+
+<p>
+The software includes components developed at the Massachusetts Institute of
+Technology as well as additional software, web infrastructure, and deployment
+tools developed by A. T. Patera.
+</p>
+
+<p>
+Copyright &copy; 2025&ndash;2026 Massachusetts Institute of Technology
+(core components).
+</p>
+
+<p>
+Copyright &copy; 2026 A. T. Patera
+(web interface, deployment infrastructure, and additional components).
+</p>
+
+<p>
+Released under the MIT License. Please refer to the LICENSE.txt file included
+in the repository for complete terms and attribution requirements.
+</p>
+
 {% endblock %}

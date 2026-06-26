@@ -5,16 +5,26 @@
 <h1>Live Transcript</h1>
 
 <div class="job-box">
-  <p><strong>Job:</strong> {{ job.job_name or job.id }}</p>
+  <p><strong>Current job:</strong> {{ job.job_name or job.id }}</p>
   <p><strong>Status:</strong> <span id="live-status" class="status {{ job.status }}">{{ job.status }}</span></p>
   <p class="hint">
-    This single Live Transcript window checks quietly for transcript updates. It will not reload or move the transcript while you are reading. When an update is available, use the button that appears below.
+    This is the single Live Transcript window for the current job. It checks quietly for transcript updates. It will not reload or move the transcript while you are reading. When an update is available, use the button that appears below.
   </p>
 </div>
 
 <p>
-  <a class="button secondary" href="{{ url_for('job_status', job_id=job.id) }}">Job Status</a>
-  <a class="button secondary" href="{{ url_for('jobs') }}">Session Jobs</a>
+  <a class="button secondary"
+     href="{{ url_for('current_job_status') }}"
+     target="myagency_job_status"
+     rel="noopener noreferrer">
+    Job Status
+  </a>
+  <a class="button secondary"
+     href="{{ url_for('jobs') }}"
+     target="myagency_job_status"
+     rel="noopener noreferrer">
+    Session Jobs
+  </a>
   {% if job.result_html %}
     <a class="button" href="{{ url_for('download', job_id=job.id) }}">Download Current Bundle</a>
   {% endif %}
@@ -28,7 +38,7 @@
 {% if job.result_html %}
   <iframe
     id="transcript-frame"
-    src="{{ url_for('live_result', job_id=job.id) }}?v={{ transcript_version }}"
+    src="{{ url_for('current_live_result') }}?v={{ transcript_version }}"
     style="width:100%; height:80vh; border:1px solid #ccc; border-radius:8px; background:white;">
   </iframe>
 {% else %}
@@ -44,8 +54,8 @@
 
 <script>
 (function () {
-  const statusUrl = "{{ url_for('live_status', job_id=job.id) }}";
-  const resultBaseUrl = "{{ url_for('live_result', job_id=job.id) }}";
+  const statusUrl = "{{ url_for('current_live_status') }}";
+  const resultBaseUrl = "{{ url_for('current_live_result') }}";
   const statusSpan = document.getElementById("live-status");
   const banner = document.getElementById("update-banner");
   const updateButton = document.getElementById("update-button");

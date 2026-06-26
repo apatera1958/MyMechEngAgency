@@ -343,8 +343,9 @@ def submit():
         n_agents=n_agents,
         log_path=str(ROOT / "logs" / f"{jid}.log"),
     )
+    _set_current_job(jid)
     flash("Job queued.")
-    return redirect(url_for("job_status", job_id=jid))
+    return redirect(url_for("current_job_status"))
 
 
 @app.route("/jobs")
@@ -362,6 +363,57 @@ def _session_can_access(job) -> bool:
     return bool(job["session_id"]) and job["session_id"] == session.get("session_id")
 
 
+def _set_current_job(job_id: str) -> None:
+    session["current_job_id"] = job_id
+
+
+def _current_job():
+    job_id = session.get("current_job_id")
+    if not job_id:
+        return None
+    job = db.one(job_id)
+    if not _session_can_access(job):
+        session.pop("current_job_id", None)
+        return None
+    return job
+
+
+@app.route("/current-job")
+def current_job_status():
+    auth = _require_auth()
+    if auth:
+        return auth
+    job = _current_job()
+    if not job:
+        flash("Please choose a job from Session Jobs or submit a new problem.")
+        return redirect(url_for("jobs"))
+    return redirect(url_for("job_status", job_id=job["id"]))
+
+
+@app.route("/select-job/<job_id>")
+def select_job(job_id: str):
+    auth = _require_auth()
+    if auth:
+        return auth
+    job = db.one(job_id)
+    if not _session_can_access(job):
+        abort(404)
+    _set_current_job(job_id)
+    return redirect(url_for("current_job_status"))
+
+
+@app.route("/select-job/<job_id>/live")
+def select_job_live(job_id: str):
+    auth = _require_auth()
+    if auth:
+        return auth
+    job = db.one(job_id)
+    if not _session_can_access(job):
+        abort(404)
+    _set_current_job(job_id)
+    return redirect(url_for("current_live_transcript"))
+
+
 @app.route("/job/<job_id>")
 def job_status(job_id: str):
     auth = _require_auth()
@@ -370,6 +422,7 @@ def job_status(job_id: str):
     job = db.one(job_id)
     if not _session_can_access(job):
         abort(404)
+    _set_current_job(job_id)
     parent = db.one(job["parent_id"]) if job["parent_id"] else None
     bundle = _latest_bundle(job["prob_dir"])
 
@@ -381,15 +434,16 @@ def job_status(job_id: str):
     )
 
 
-@app.route("/live/<job_id>")
-def live_transcript(job_id: str):
-    """Wrapper page for a non-disruptive live transcript view."""
+@app.route("/current-live")
+def current_live_transcript():
+    """Stable Live Transcript page for the current job in this browser session."""
     auth = _require_auth()
     if auth:
         return auth
-    job = db.one(job_id)
-    if not _session_can_access(job):
-        abort(404)
+    job = _current_job()
+    if not job:
+        flash("Please choose a job from Session Jobs or submit a new problem.")
+        return redirect(url_for("jobs"))
     return render_template(
         "live_transcript.html",
         job=job,
@@ -397,33 +451,57 @@ def live_transcript(job_id: str):
     )
 
 
-@app.route("/live-status/<job_id>")
-def live_status(job_id: str):
-    """Small polling endpoint used by the Live Transcript page.
-
-    It reports whether the transcript file has changed without forcing
-    the visible transcript iframe to reload. The user chooses when to
-    load the update.
-    """
+@app.route("/live/<job_id>")
+def live_transcript(job_id: str):
+    """Compatibility route: select this job, then show the stable Live Transcript URL."""
     auth = _require_auth()
     if auth:
         return auth
     job = db.one(job_id)
     if not _session_can_access(job):
         abort(404)
+    _set_current_job(job_id)
+    return redirect(url_for("current_live_transcript"))
 
+
+@app.route("/current-live-status")
+def current_live_status():
+    """Polling endpoint for the stable Live Transcript page."""
+    auth = _require_auth()
+    if auth:
+        return auth
+    job = _current_job()
+    if not job:
+        abort(404)
+    return _live_status_payload(job)
+
+
+def _live_status_payload(job):
     version = _transcript_version(job)
     return jsonify(
         {
             "job_id": job["id"],
+            "job_name": job["job_name"],
             "status": job["status"],
             "updated_at": job["updated_at"],
             "has_transcript": bool(job["result_html"] and version > 0.0),
             "transcript_version": version,
-            "result_url": url_for("live_result", job_id=job["id"]) if job["result_html"] and version > 0.0 else None,
+            "result_url": url_for("current_live_result") if job["result_html"] and version > 0.0 else None,
             "bundle_url": url_for("download", job_id=job["id"]) if job["result_html"] and _latest_bundle(job["prob_dir"]) else None,
         }
     )
+
+
+@app.route("/live-status/<job_id>")
+def live_status(job_id: str):
+    """Compatibility polling endpoint for job-specific Live Transcript URLs."""
+    auth = _require_auth()
+    if auth:
+        return auth
+    job = db.one(job_id)
+    if not _session_can_access(job):
+        abort(404)
+    return _live_status_payload(job)
 
 
 @app.route("/job/<job_id>/continue", methods=["POST"])
@@ -436,14 +514,14 @@ def continue_job(job_id: str):
         abort(404)
     if job["status"] != "complete":
         flash("Continuation is available only after the selected job is complete.")
-        return redirect(url_for("job_status", job_id=job_id))
+        return redirect(url_for("current_job_status"))
     question = (request.form.get("question") or "").strip()
     if not question:
         flash("Please enter a follow-up question.")
-        return redirect(url_for("job_status", job_id=job_id))
+        return redirect(url_for("current_job_status"))
     if not job["stamp"] or not job["transcript_txt"] or not job["result_html"]:
         flash("Continuation is unavailable because the transcript is not ready.")
-        return redirect(url_for("job_status", job_id=job_id))
+        return redirect(url_for("current_job_status"))
 
     # Reuse the same visible job row. The worker will append the follow-on
     # to the existing transcript and rebuild the single current Bundle.
@@ -454,8 +532,9 @@ def continue_job(job_id: str):
         question=question,
         error=None,
     )
+    _set_current_job(job_id)
     flash("Follow-on queued for this problem.")
-    return redirect(url_for("job_status", job_id=job_id))
+    return redirect(url_for("current_job_status"))
 
 
 @app.route("/problem-statement/<job_id>")
@@ -470,6 +549,23 @@ def problem_statement(job_id: str):
     if not path.exists():
         abort(404)
     return send_file(path, mimetype="application/pdf")
+
+
+@app.route("/current-live-result")
+def current_live_result():
+    """Serve the transcript HTML for the current job in the stable Live tab."""
+    auth = _require_auth()
+    if auth:
+        return auth
+    job = _current_job()
+    if not job or not job["result_html"]:
+        abort(404)
+    path = Path(job["result_html"])
+    if not path.exists():
+        abort(404)
+    html = path.read_text(encoding="utf-8", errors="ignore")
+    html = _rewrite_transcript_links_for_live_view(html, job["id"])
+    return Response(html, mimetype="text/html")
 
 
 @app.route("/live-result/<job_id>")

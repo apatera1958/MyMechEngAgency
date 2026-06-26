@@ -6,7 +6,16 @@
 <p><a class="button" href="{{ url_for('submit') }}">Submit New Problem</a></p>
 {% if jobs and jobs|length > 0 %}
 <table>
-  <thead><tr><th>Created</th><th>Job name</th><th>PDF file</th><th>Status</th><th>Result</th></tr></thead>
+  <thead>
+    <tr>
+      <th>Created</th>
+      <th>Job name</th>
+      <th>PDF file</th>
+      <th>Status</th>
+      <th>Transcript</th>
+      <th>Bundle</th>
+    </tr>
+  </thead>
   <tbody>
   {% for job in jobs %}
     <tr>
@@ -14,7 +23,18 @@
       <td><a href="{{ url_for('job_status', job_id=job.id) }}">{{ job.job_name or job.id }}</a></td>
       <td>{{ job.original_filename or '—' }}</td>
       <td><span class="status {{ job.status }}">{{ job.status }}</span></td>
-      <td>{% if job.status == 'complete' and job.result_html %}<a href="{{ url_for('download', job_id=job.id) }}">Download Current Bundle</a>{% else %}—{% endif %}</td>
+      <td>
+        <a href="{{ url_for('live_transcript', job_id=job.id) }}" target="myagency_live_transcript" rel="noopener noreferrer">
+          Live Transcript
+        </a>
+      </td>
+      <td>
+        {% if job.status == 'complete' and job.result_html %}
+          <a href="{{ url_for('download', job_id=job.id) }}">Download Current Bundle</a>
+        {% else %}
+          —
+        {% endif %}
+      </td>
     </tr>
   {% endfor %}
   </tbody>

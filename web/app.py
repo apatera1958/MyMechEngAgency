@@ -124,24 +124,30 @@ def _transcript_version(job) -> float:
 
 
 def _rewrite_transcript_links_for_live_view(html: str, job_id: str) -> str:
-    """Rewrite bundle-relative links so they work in the browser Live Transcript.
+    """Rewrite Bundle-relative links so they work in Live Transcript.
 
     The saved transcript HTML is intentionally portable inside Bundle.zip,
     where links such as ProblemStatement.pdf are correct relative links.
     The Live Transcript view is served from Flask routes, so those same
-    relative links would otherwise resolve incorrectly.  This function only
+    relative links would otherwise resolve incorrectly. This function only
     rewrites the browser/live copy; it does not modify the saved transcript
     or the Bundle.
     """
     ps_url = url_for("problem_statement", job_id=job_id)
-    replacements = {
-        'href="ProblemStatement.pdf"': f'href="{ps_url}"',
-        "href='ProblemStatement.pdf'": f"href='{ps_url}'",
-        'href="./ProblemStatement.pdf"': f'href="{ps_url}"',
-        "href='./ProblemStatement.pdf'": f"href='{ps_url}'",
-    }
-    for old, new in replacements.items():
-        html = html.replace(old, new)
+
+    # Common exact forms. These also catch JavaScript/window.open uses that
+    # quote the bare relative filename rather than using an href attribute.
+    for rel in ("ProblemStatement.pdf", "./ProblemStatement.pdf", "PROB/ProblemStatement.pdf", "./PROB/ProblemStatement.pdf"):
+        html = html.replace(f'"{rel}"', f'"{ps_url}"')
+        html = html.replace(f"'{rel}'", f"'{ps_url}'")
+
+    # More general href/src attributes ending in ProblemStatement.pdf,
+    # including paths such as ../PROB/ProblemStatement.pdf.
+    html = re.sub(
+        r'(?i)(\b(?:href|src)=\s*["\'])([^"\']*/)?ProblemStatement\.pdf(["\'])',
+        lambda m: f"{m.group(1)}{ps_url}{m.group(3)}",
+        html,
+    )
     return html
 
 

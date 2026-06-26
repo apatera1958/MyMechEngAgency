@@ -8,7 +8,7 @@
   <p><strong>Job:</strong> {{ job.job_name or job.id }}</p>
   <p><strong>Status:</strong> <span id="live-status" class="status {{ job.status }}">{{ job.status }}</span></p>
   <p class="hint">
-    This page checks quietly for transcript updates. It will not reload or move the transcript while you are reading.
+    This page checks quietly for transcript updates. It will not reload or move the transcript while you are reading. When an update is available, use the button that appears below.
   </p>
 </div>
 
@@ -28,7 +28,7 @@
 {% if job.result_html %}
   <iframe
     id="transcript-frame"
-    src="{{ url_for('result', job_id=job.id) }}?v={{ transcript_version }}"
+    src="{{ url_for('live_result', job_id=job.id) }}?v={{ transcript_version }}"
     style="width:100%; height:80vh; border:1px solid #ccc; border-radius:8px; background:white;">
   </iframe>
 {% else %}
@@ -45,7 +45,7 @@
 <script>
 (function () {
   const statusUrl = "{{ url_for('live_status', job_id=job.id) }}";
-  const resultBaseUrl = "{{ url_for('result', job_id=job.id) }}";
+  const resultBaseUrl = "{{ url_for('live_result', job_id=job.id) }}";
   const statusSpan = document.getElementById("live-status");
   const banner = document.getElementById("update-banner");
   const updateButton = document.getElementById("update-button");

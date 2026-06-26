@@ -5,19 +5,6 @@
 {% if job.status in ['queued', 'running'] %}
 <meta http-equiv="refresh" content="5">
 {% endif %}
-
-{% if request.args.get('open_live') == '1' %}
-<script>
-window.addEventListener("DOMContentLoaded", function () {
-  const liveUrl = "{{ url_for('live_transcript', job_id=job.id) }}";
-  const opened = window.open(liveUrl, "_blank", "noopener,noreferrer");
-  const hint = document.getElementById("live-open-hint");
-  if (!opened && hint) {
-    hint.style.display = "block";
-  }
-});
-</script>
-{% endif %}
 {% endblock %}
 
 {% block content %}
@@ -51,10 +38,6 @@ window.addEventListener("DOMContentLoaded", function () {
 </div>
 
 <p class="hint">Return to <a href="{{ url_for('jobs') }}">Session Jobs</a>.</p>
-
-<p id="live-open-hint" class="hint" style="display:none;">
-  Your browser blocked the Live Transcript tab. Use the “Open Live Transcript” button below.
-</p>
 
 <p>
   <a class="button secondary" href="{{ url_for('log', job_id=job.id) }}">View log</a>

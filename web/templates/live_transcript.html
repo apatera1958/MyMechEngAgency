@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Live Transcript | MyMechEngAgency{% endblock %}
+
+{% block content %}
+<h1>Live Transcript</h1>
+
+<div class="job-box">
+  <p><strong>Job:</strong> {{ job.job_name or job.id }}</p>
+  <p><strong>Status:</strong> <span id="live-status" class="status {{ job.status }}">{{ job.status }}</span></p>
+  <p class="hint">
+    This page checks quietly for transcript updates. It will not reload or move the transcript while you are reading.
+  </p>
+</div>
+
+<p>
+  <a class="button secondary" href="{{ url_for('job_status', job_id=job.id) }}">Job Status</a>
+  <a class="button secondary" href="{{ url_for('jobs') }}">Session Jobs</a>
+  {% if job.result_html %}
+    <a class="button" href="{{ url_for('download', job_id=job.id) }}">Download Current Bundle</a>
+  {% endif %}
+</p>
+
+<div id="update-banner" class="job-box" style="display:none;">
+  <p><strong>Update available.</strong> The transcript has changed.</p>
+  <button type="button" id="update-button">Load update and go to latest Follow-On</button>
+</div>
+
+{% if job.result_html %}
+  <iframe
+    id="transcript-frame"
+    src="{{ url_for('result', job_id=job.id) }}?v={{ transcript_version }}"
+    style="width:100%; height:80vh; border:1px solid #ccc; border-radius:8px; background:white;">
+  </iframe>
+{% else %}
+  <div id="waiting-message" class="job-box">
+    <p>The transcript is not available yet. This page will show an update button when the transcript is ready.</p>
+  </div>
+  <iframe
+    id="transcript-frame"
+    src="about:blank"
+    style="width:100%; height:80vh; border:1px solid #ccc; border-radius:8px; background:white; display:none;">
+  </iframe>
+{% endif %}
+
+<script>
+(function () {
+  const statusUrl = "{{ url_for('live_status', job_id=job.id) }}";
+  const resultBaseUrl = "{{ url_for('result', job_id=job.id) }}";
+  const statusSpan = document.getElementById("live-status");
+  const banner = document.getElementById("update-banner");
+  const updateButton = document.getElementById("update-button");
+  const frame = document.getElementById("transcript-frame");
+  const waiting = document.getElementById("waiting-message");
+
+  let knownVersion = Number("{{ transcript_version or 0 }}") || 0;
+  let pendingVersion = knownVersion;
+
+  function showUpdate(version) {
+    pendingVersion = version;
+    banner.style.display = "block";
+  }
+
+  function scrollToLatestFollowOn() {
+    try {
+      const doc = frame.contentDocument || frame.contentWindow.document;
+      if (!doc) return;
+
+      const candidates = Array.from(
+        doc.querySelectorAll("h1, h2, h3, h4, button, summary, a")
+      );
+
+      const followOns = candidates.filter(el =>
+        /Follow-On\s+\d+/i.test((el.textContent || "").trim())
+      );
+
+      if (followOns.length > 0) {
+        followOns[followOns.length - 1].scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    } catch (e) {
+      // If browser security or document timing prevents access, simply leave the iframe at its default position.
+    }
+  }
+
+  updateButton.addEventListener("click", function () {
+    if (!pendingVersion || pendingVersion <= 0) return;
+
+    frame.style.display = "block";
+    if (waiting) waiting.style.display = "none";
+
+    frame.onload = function () {
+      scrollToLatestFollowOn();
+      frame.onload = null;
+    };
+
+    frame.src = resultBaseUrl + "?v=" + encodeURIComponent(pendingVersion);
+    knownVersion = pendingVersion;
+    banner.style.display = "none";
+  });
+
+  async function poll() {
+    try {
+      const resp = await fetch(statusUrl, { cache: "no-store" });
+      if (!resp.ok) return;
+      const data = await resp.json();
+
+      if (statusSpan && data.status) {
+        statusSpan.textContent = data.status;
+        statusSpan.className = "status " + data.status;
+      }
+
+      const version = Number(data.transcript_version || 0);
+      if (version > knownVersion) {
+        showUpdate(version);
+      }
+    } catch (e) {
+      // Quietly ignore temporary network/server wake-up issues.
+    }
+  }
+
+  setInterval(poll, 5000);
+  poll();
+})();
+</script>
+
+{% endblock %}

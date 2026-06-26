@@ -5,7 +5,7 @@ import uuid
 import re
 from pathlib import Path
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, send_file, abort, flash, session
+from flask import Flask, render_template, request, redirect, url_for, send_file, abort, flash, session, jsonify
 from werkzeug.utils import secure_filename
 from . import db
 
@@ -108,6 +108,19 @@ def _latest_bundle(prob_dir: Path | str | None) -> Path | None:
         return None
     bundles = sorted(p.glob("Bundle_*.zip"), key=lambda x: x.stat().st_mtime, reverse=True)
     return bundles[0] if bundles else None
+
+
+def _transcript_version(job) -> float:
+    """Return the mtime of the current transcript HTML, or 0.0 if unavailable."""
+    try:
+        if not job or not job["result_html"]:
+            return 0.0
+        p = Path(job["result_html"])
+        if not p.exists():
+            return 0.0
+        return float(p.stat().st_mtime)
+    except Exception:
+        return 0.0
 
 
 def _next_follow_on_number_for_job(job) -> int:
@@ -303,7 +316,7 @@ def submit():
         log_path=str(ROOT / "logs" / f"{jid}.log"),
     )
     flash("Job queued.")
-    return redirect(url_for("job_status", job_id=jid))
+    return redirect(url_for("job_status", job_id=jid, open_live=1))
 
 
 @app.route("/jobs")
@@ -337,6 +350,51 @@ def job_status(job_id: str):
         job=job,
         parent=parent,
         bundle=bundle,
+    )
+
+
+@app.route("/live/<job_id>")
+def live_transcript(job_id: str):
+    """Wrapper page for a non-disruptive live transcript view."""
+    auth = _require_auth()
+    if auth:
+        return auth
+    job = db.one(job_id)
+    if not _session_can_access(job):
+        abort(404)
+    return render_template(
+        "live_transcript.html",
+        job=job,
+        transcript_version=_transcript_version(job),
+    )
+
+
+@app.route("/live-status/<job_id>")
+def live_status(job_id: str):
+    """Small polling endpoint used by the Live Transcript page.
+
+    It reports whether the transcript file has changed without forcing
+    the visible transcript iframe to reload. The user chooses when to
+    load the update.
+    """
+    auth = _require_auth()
+    if auth:
+        return auth
+    job = db.one(job_id)
+    if not _session_can_access(job):
+        abort(404)
+
+    version = _transcript_version(job)
+    return jsonify(
+        {
+            "job_id": job["id"],
+            "status": job["status"],
+            "updated_at": job["updated_at"],
+            "has_transcript": bool(job["result_html"] and version > 0.0),
+            "transcript_version": version,
+            "result_url": url_for("result", job_id=job["id"]) if job["result_html"] and version > 0.0 else None,
+            "bundle_url": url_for("download", job_id=job["id"]) if job["result_html"] and _latest_bundle(job["prob_dir"]) else None,
+        }
     )
 
 

@@ -110,25 +110,62 @@ def _latest_bundle(prob_dir: Path | str | None) -> Path | None:
     return bundles[0] if bundles else None
 
 
-def _rewrite_transcript_links_for_browser(html: str, job_id: str) -> str:
-    """Rewrite Bundle-local links so transcript.html also works in browser view.
+def _prepare_transcript_for_browser(html: str) -> str:
+    """Prepare transcript.html for online viewing only.
 
-    The archived Bundle should remain portable, so the saved transcript.html
-    uses relative links such as ProblemStatement.pdf.  The browser route
-    rewrites those links at request time only.  The regex below intentionally
-    catches any href whose target ends in ProblemStatement.pdf, including
-    variants such as ./ProblemStatement.pdf, PROB/ProblemStatement.pdf,
-    Problem/PROB/ProblemStatement.pdf, or ../PROB/ProblemStatement.pdf.
+    The saved transcript.html and the downloadable Bundle are left unchanged.
+    For the online transcript view, remove links/buttons that point to the
+    Bundle-local ProblemStatement.pdf, because the online session already
+    identifies the problem and the Bundle remains the archival copy.
     """
-    problem_url = url_for("problem_statement", job_id=job_id)
 
-    # Replace href values that end in ProblemStatement.pdf, preserving the
-    # original quote style. This is more robust than enumerating exact paths.
-    pattern = re.compile(
-        r"href=(?P<quote>[\"'])(?P<path>[^\"']*ProblemStatement\.pdf)(?P=quote)",
-        flags=re.IGNORECASE,
+    # Remove quoted anchor tags whose href ends in ProblemStatement.pdf.
+    # This covers buttons implemented as anchors, e.g.
+    # <a class="button" href="ProblemStatement.pdf">Problem Statement</a>.
+    html = re.sub(
+        r"<a\b(?=[^>]*\bhref\s*=\s*[\"'][^\"']*ProblemStatement\.pdf[\"'])(?:[^>]|\n)*?</a>",
+        "",
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
     )
-    return pattern.sub(lambda m: f"href={m.group('quote')}{problem_url}{m.group('quote')}", html)
+
+    # Remove unquoted anchor tags whose href ends in ProblemStatement.pdf.
+    html = re.sub(
+        r"<a\b(?=[^>]*\bhref\s*=\s*[^\s>]*ProblemStatement\.pdf)(?:[^>]|\n)*?</a>",
+        "",
+        html,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    return html
+
+
+def _problem_statement_path_for_job(job) -> Path | None:
+    """Return the best available path to the job's uploaded PDF."""
+    candidates: list[Path] = []
+
+    try:
+        if job and job["input_pdf"]:
+            candidates.append(Path(job["input_pdf"]))
+    except Exception:
+        pass
+
+    try:
+        if job and job["prob_dir"]:
+            candidates.append(Path(job["prob_dir"]) / "ProblemStatement.pdf")
+    except Exception:
+        pass
+
+    try:
+        if job and job["problem_dir"]:
+            candidates.append(Path(job["problem_dir"]) / "PROB" / "ProblemStatement.pdf")
+    except Exception:
+        pass
+
+    for path in candidates:
+        if path.exists():
+            return path
+    return None
 
 def _next_follow_on_number_for_job(job) -> int:
     """Return the next Follow-On number for this job's transcript/html.
@@ -419,9 +456,28 @@ def transcript(job_id: str):
     path = Path(job["result_html"])
     if not path.exists():
         abort(404)
+    session["current_transcript_job_id"] = job_id
     html = path.read_text(encoding="utf-8", errors="ignore")
-    html = _rewrite_transcript_links_for_browser(html, job_id)
+    html = _prepare_transcript_for_browser(html)
     return Response(html, mimetype="text/html")
+
+
+@app.route("/transcript/ProblemStatement.pdf")
+def transcript_problem_statement_compat():
+    """Compatibility route for old/unrewritten relative transcript links."""
+    auth = _require_auth()
+    if auth:
+        return auth
+    job_id = session.get("current_transcript_job_id")
+    if not job_id:
+        abort(404)
+    job = db.one(job_id)
+    if not _session_can_access(job):
+        abort(404)
+    path = _problem_statement_path_for_job(job)
+    if not path:
+        abort(404)
+    return send_file(path, mimetype="application/pdf")
 
 
 @app.route("/problem-statement/<job_id>")
@@ -430,10 +486,10 @@ def problem_statement(job_id: str):
     if auth:
         return auth
     job = db.one(job_id)
-    if not _session_can_access(job) or not job["input_pdf"]:
+    if not _session_can_access(job):
         abort(404)
-    path = Path(job["input_pdf"])
-    if not path.exists():
+    path = _problem_statement_path_for_job(job)
+    if not path:
         abort(404)
     return send_file(path, mimetype="application/pdf")
 

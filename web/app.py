@@ -115,21 +115,20 @@ def _rewrite_transcript_links_for_browser(html: str, job_id: str) -> str:
 
     The archived Bundle should remain portable, so the saved transcript.html
     uses relative links such as ProblemStatement.pdf.  The browser route
-    serves a transient copy with those links rewritten to authenticated Flask
-    routes for this job.
+    rewrites those links at request time only.  The regex below intentionally
+    catches any href whose target ends in ProblemStatement.pdf, including
+    variants such as ./ProblemStatement.pdf, PROB/ProblemStatement.pdf,
+    Problem/PROB/ProblemStatement.pdf, or ../PROB/ProblemStatement.pdf.
     """
     problem_url = url_for("problem_statement", job_id=job_id)
 
-    # Common forms generated in the transcript HTML.
-    html = html.replace('href="ProblemStatement.pdf"', f'href="{problem_url}"')
-    html = html.replace("href='ProblemStatement.pdf'", f"href='{problem_url}'")
-    html = html.replace('href="./ProblemStatement.pdf"', f'href="{problem_url}"')
-    html = html.replace("href='./ProblemStatement.pdf'", f"href='{problem_url}'")
-    html = html.replace('href="PROB/ProblemStatement.pdf"', f'href="{problem_url}"')
-    html = html.replace("href='PROB/ProblemStatement.pdf'", f"href='{problem_url}'")
-
-    return html
-
+    # Replace href values that end in ProblemStatement.pdf, preserving the
+    # original quote style. This is more robust than enumerating exact paths.
+    pattern = re.compile(
+        r"href=(?P<quote>[\"'])(?P<path>[^\"']*ProblemStatement\.pdf)(?P=quote)",
+        flags=re.IGNORECASE,
+    )
+    return pattern.sub(lambda m: f"href={m.group('quote')}{problem_url}{m.group('quote')}", html)
 
 def _next_follow_on_number_for_job(job) -> int:
     """Return the next Follow-On number for this job's transcript/html.

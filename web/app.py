@@ -5,7 +5,7 @@ import uuid
 import re
 from pathlib import Path
 from datetime import datetime
-from flask import Flask, render_template, request, redirect, url_for, send_file, abort, flash, session
+from flask import Flask, render_template, request, redirect, url_for, send_file, abort, flash, session, Response
 from werkzeug.utils import secure_filename
 from . import db
 
@@ -108,6 +108,27 @@ def _latest_bundle(prob_dir: Path | str | None) -> Path | None:
         return None
     bundles = sorted(p.glob("Bundle_*.zip"), key=lambda x: x.stat().st_mtime, reverse=True)
     return bundles[0] if bundles else None
+
+
+def _rewrite_transcript_links_for_browser(html: str, job_id: str) -> str:
+    """Rewrite Bundle-local links so transcript.html also works in browser view.
+
+    The archived Bundle should remain portable, so the saved transcript.html
+    uses relative links such as ProblemStatement.pdf.  The browser route
+    serves a transient copy with those links rewritten to authenticated Flask
+    routes for this job.
+    """
+    problem_url = url_for("problem_statement", job_id=job_id)
+
+    # Common forms generated in the transcript HTML.
+    html = html.replace('href="ProblemStatement.pdf"', f'href="{problem_url}"')
+    html = html.replace("href='ProblemStatement.pdf'", f"href='{problem_url}'")
+    html = html.replace('href="./ProblemStatement.pdf"', f'href="{problem_url}"')
+    html = html.replace("href='./ProblemStatement.pdf'", f"href='{problem_url}'")
+    html = html.replace('href="PROB/ProblemStatement.pdf"', f'href="{problem_url}"')
+    html = html.replace("href='PROB/ProblemStatement.pdf'", f"href='{problem_url}'")
+
+    return html
 
 
 def _next_follow_on_number_for_job(job) -> int:
@@ -384,6 +405,38 @@ def result(job_id: str):
     if not path.exists():
         abort(404)
     return send_file(path)
+
+
+
+
+@app.route("/transcript/<job_id>")
+def transcript(job_id: str):
+    auth = _require_auth()
+    if auth:
+        return auth
+    job = db.one(job_id)
+    if not _session_can_access(job) or not job["result_html"]:
+        abort(404)
+    path = Path(job["result_html"])
+    if not path.exists():
+        abort(404)
+    html = path.read_text(encoding="utf-8", errors="ignore")
+    html = _rewrite_transcript_links_for_browser(html, job_id)
+    return Response(html, mimetype="text/html")
+
+
+@app.route("/problem-statement/<job_id>")
+def problem_statement(job_id: str):
+    auth = _require_auth()
+    if auth:
+        return auth
+    job = db.one(job_id)
+    if not _session_can_access(job) or not job["input_pdf"]:
+        abort(404)
+    path = Path(job["input_pdf"])
+    if not path.exists():
+        abort(404)
+    return send_file(path, mimetype="application/pdf")
 
 
 @app.route("/download/<job_id>")

@@ -43,6 +43,9 @@
   <a class="button secondary" href="{{ url_for('log', job_id=job.id) }}">View log</a>
 
   {% if job.status == 'complete' and job.result_html %}
+    <a class="button secondary" href="{{ url_for('transcript', job_id=job.id) }}" target="_blank" rel="noopener noreferrer">
+      View Current Transcript
+    </a>
     <a class="button" href="{{ url_for('download', job_id=job.id) }}">
       Download Current Bundle.zip
     </a>

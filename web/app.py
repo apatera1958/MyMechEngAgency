@@ -110,31 +110,30 @@ def _latest_bundle(prob_dir: Path | str | None) -> Path | None:
     return bundles[0] if bundles else None
 
 
-def _prepare_transcript_for_browser(html: str) -> str:
+def _prepare_transcript_for_browser(html: str, job_id: str) -> str:
     """Prepare transcript.html for online viewing only.
 
-    The saved transcript.html and the downloadable Bundle are left unchanged.
-    For the online transcript view, remove links/buttons that point to the
-    Bundle-local ProblemStatement.pdf, because the online session already
-    identifies the problem and the Bundle remains the archival copy.
+    The saved transcript.html and downloadable Bundle are left unchanged.
+    For the online transcript view, rewrite Bundle-local links to
+    ProblemStatement.pdf so they point to an authenticated Flask route.
     """
+    problem_url = url_for("problem_statement", job_id=job_id)
 
-    # Remove quoted anchor tags whose href ends in ProblemStatement.pdf.
-    # This covers buttons implemented as anchors, e.g.
-    # <a class="button" href="ProblemStatement.pdf">Problem Statement</a>.
+    # Quoted href values, e.g. href="ProblemStatement.pdf" or
+    # href='../PROB/ProblemStatement.pdf'.
     html = re.sub(
-        r"<a\b(?=[^>]*\bhref\s*=\s*[\"'][^\"']*ProblemStatement\.pdf[\"'])(?:[^>]|\n)*?</a>",
-        "",
+        r"(\bhref\s*=\s*)([\"'])([^\"']*ProblemStatement\.pdf)([\"'])",
+        lambda m: f"{m.group(1)}{m.group(2)}{problem_url}{m.group(4)}",
         html,
-        flags=re.IGNORECASE | re.DOTALL,
+        flags=re.IGNORECASE,
     )
 
-    # Remove unquoted anchor tags whose href ends in ProblemStatement.pdf.
+    # Unquoted href values, e.g. href=ProblemStatement.pdf.
     html = re.sub(
-        r"<a\b(?=[^>]*\bhref\s*=\s*[^\s>]*ProblemStatement\.pdf)(?:[^>]|\n)*?</a>",
-        "",
+        r"(\bhref\s*=\s*)([^\s>]*ProblemStatement\.pdf)",
+        lambda m: f"{m.group(1)}{problem_url}",
         html,
-        flags=re.IGNORECASE | re.DOTALL,
+        flags=re.IGNORECASE,
     )
 
     return html
@@ -458,26 +457,9 @@ def transcript(job_id: str):
         abort(404)
     session["current_transcript_job_id"] = job_id
     html = path.read_text(encoding="utf-8", errors="ignore")
-    html = _prepare_transcript_for_browser(html)
+    html = _prepare_transcript_for_browser(html, job_id)
     return Response(html, mimetype="text/html")
 
-
-@app.route("/transcript/ProblemStatement.pdf")
-def transcript_problem_statement_compat():
-    """Compatibility route for old/unrewritten relative transcript links."""
-    auth = _require_auth()
-    if auth:
-        return auth
-    job_id = session.get("current_transcript_job_id")
-    if not job_id:
-        abort(404)
-    job = db.one(job_id)
-    if not _session_can_access(job):
-        abort(404)
-    path = _problem_statement_path_for_job(job)
-    if not path:
-        abort(404)
-    return send_file(path, mimetype="application/pdf")
 
 
 @app.route("/problem-statement/<job_id>")

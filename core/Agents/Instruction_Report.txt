@@ -22,7 +22,7 @@ Follow these guidelines:
    - Recommended solution (including the key quantity or formula of interest).
    - Key reasoning and modeling assumptions.
    - Verification (checks of the solution procedure).
-   - Validation (checks of the mathematical / physical model).
+   - Validation (checks of the mathematical/physical model).
    - Limitations and possible next steps.
 
    You may adjust section titles slightly to fit the specific problem, but keep this general structure.
@@ -63,3 +63,29 @@ Follow these guidelines:
    - Keep the tone professional, analytical, and neutral.
    - It is acceptable to use first person plural (“we”) to describe the analysis steps.
    - Be concise but not cryptic: it is better to give a compact explanation than a long, repetitive one.
+
+**You also have an important second deliverable. The second deliverable shall consist solely of a valid JSON object representing a Jupyter Notebook specification. No explanatory text, Markdown fences, or commentary shall appear before or after the JSON. Enclose the JSON object within a single fenced block labeled json. The Jupyter Notebook will be used, as a companion to the Report, for numerical EXPLORATION of the solution. Restrict all notebook code to Python standard library modules such as NumPy, SciPy, SymPy, Matplotlib, and Pandas; do not import any other packages. The notebook shall execute successfully in Google Colab using "Runtime → Run All" without requiring any manual modification.
+
+Here is the JSON structure:
+{
+    "cells": [
+        {
+            "cell_type": "markdown",
+            "source": "..."
+        },
+        {
+            "cell_type": "code",
+            "source": "..."
+        }
+    ]
+}
+and note each cell shall contain exactly two keys: cell_type and source. Every code cell shall be executable independently of hidden notebook state. Variables shall only be referenced if defined in earlier cells.
+
+Here is the proposed cell structure:
+(A) A text (markdown) cell which very briefly summarizes the problem.
+(B) A Python cell which will allow the user to readily change the parameters of the problem. This cell should confirm that the parameter values are in the admissible range (and physically feasible), if necessary changing the input to the closest admissible value. But note validation will only take place in a later cell.
+(C) A Python cell which imports any necessary Python packages.
+(D) A Python cell which provides all the necessary pieces of the solution.
+(E) A Python cell which performs a validation analysis to confirm that, for the parameters chosen, the proposed solution is physically relevant. Typically this would include conditionals to verify that the solution is in the regime required by the (approximate) solution (e.g., conditions on aspect ratio of the geometry, value of a nondimensional parameter, amplitude of the response,...).
+(F) A Python cell which plots the results. Typical plots (of which there can be several): an independent state variable as a function of a dependent spatial or temporal coordinate, perhaps for different values of a key parameter (indicated in a legend); a Quantity of Interest as a function of a key parameter, perhaps for different values of a secondary parameter (indicated in a legend).
+Additional Markdown or Python cells may be added if they materially improve exploration of the problem.

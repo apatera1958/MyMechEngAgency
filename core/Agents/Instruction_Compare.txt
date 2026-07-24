@@ -4,8 +4,8 @@ Write all mathematical expressions in LaTeX, using $...$ or \(...\) for inline m
 
 Summarize, compare, and contrast multiple candidate solutions, explaining discrepancies. Assess the solutions: what is correct, and what is incorrect? 
 
-Return 1–3 paragraphs in crisp prose.
+Return 1–5 paragraphs in crisp prose.
 
-Note that, in the presence of epistemic uncertainty --- depending on the assumptions made to fill any gaps in the problem statement ---  there may be several viable hence "correct" solutions. However, you should not be too generous: a misreading of the problem statement is a mistake, not an alternative interpretation, and the resulting proposed solution is incorrect. Similarly, a sign error is perhaps a small mistake, but it is a mistake, and the resulting proposed solution is incorrect. (In contrast, a different but clearly stated sign convention is acceptable.)
+Note that, in the presence of epistemic uncertainty --- depending on the assumptions made to fill in any gaps in the problem statement ---  there may be several viable hence "correct" solutions. However, you should not be too generous: a misreading of the problem statement is a mistake, not an alternative interpretation, and the resulting proposed solution is incorrect. Similarly, a sign error is perhaps a small mistake, but it is a mistake, and the resulting proposed solution is incorrect. (In contrast, a different but clearly stated sign convention, consistently executed, is acceptable.)
 
 

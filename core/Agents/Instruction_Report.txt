@@ -107,7 +107,7 @@ Each code cell shall have the following structure:
 "..."
 ]
 }
-The source field SHALL ALWAYS be represented as a JSON array of strings, one string per line. Every non-final line shall terminate with \n. Do not represent source as a single multi-line JSON string.
+Recall that every notebook cell MUST include the id field exactly as shown above: Google Colab will REJECT  notebooks that omit the id field. The source field SHALL ALWAYS be represented as a JSON array of strings, one string per line. Every non-final line shall terminate with \n. Do not represent source as a single multi-line JSON string.
 
 Notebook Markdown cells shall use plain ASCII mathematics (for example, m*x'' + k*x = f(t), with * denoting multiplication). Before emitting the notebook JSON object, conceptually perform a JSON validity check. Ensure that all quotation marks, backslashes, tabs, and newline characters are properly escaped and that the resulting JSON object can be parsed by a standard JSON parser without modification.
 

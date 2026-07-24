@@ -67,7 +67,6 @@ Follow these guidelines:
 **You also have an important second deliverable. The second deliverable shall consist solely of a complete and valid JSON object representing a Jupyter Notebook specification suitable for direct import into Google Colab. No explanatory text or commentary shall appear before or after the JSON. Enclose the JSON object within exactly one fenced block labeled json. The Jupyter Notebook will be used, as a companion to the Report, for numerical EXPLORATION of the solution. Restrict all notebook code to Python standard library modules and the following packages only: NumPy, SciPy, SymPy, Matplotlib, and Pandas; do not import any other packages. The notebook shall execute successfully in Google Colab using "Runtime → Run All" without requiring any manual modification.
 
 The notebook JSON object SHALL include the required top-level keys:
-
 {
 "cells": [...],
 "metadata": {
@@ -94,9 +93,7 @@ Every notebook cell shall include a unique id, cell_type, metadata, and source. 
 "..."
 ]
 }
-
 Each code cell shall have the following structure:
-
 {
 "cell_type": "code",
 "execution_count": null,
@@ -107,7 +104,9 @@ Each code cell shall have the following structure:
 "..."
 ]
 }
-Recall that every notebook cell MUST include the id field exactly as shown above: Google Colab will REJECT  notebooks that omit the id field. The source field SHALL ALWAYS be represented as a JSON array of strings, one string per line. Every non-final line shall terminate with \n. Do not represent source as a single multi-line JSON string.
+Recall that every notebook cell MUST include the id field exactly as shown above: Google Colab will REJECT notebooks that omit the id field. The source field SHALL ALWAYS be represented as a JSON array of strings, one string per line. Every non-final line shall terminate with \n. Do not represent source as a single multi-line JSON string.
+
+Within Python code cells, AVOID embedding newline, tab, or other escape characters inside string literals whenever possible. Prefer multiple print statements (e.g., print() followed by print("message")) to improve robustness and readability.
 
 Notebook Markdown cells shall use plain ASCII mathematics (for example, m*x'' + k*x = f(t), with * denoting multiplication). Before emitting the notebook JSON object, conceptually perform a JSON validity check. Ensure that all quotation marks, backslashes, tabs, and newline characters are properly escaped and that the resulting JSON object can be parsed by a standard JSON parser without modification.
 

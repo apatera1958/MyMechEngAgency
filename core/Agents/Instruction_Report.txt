@@ -64,22 +64,33 @@ Follow these guidelines:
    - It is acceptable to use first person plural (“we”) to describe the analysis steps.
    - Be concise but not cryptic: it is better to give a compact explanation than a long, repetitive one.
 
-**You also have an important second deliverable. The second deliverable shall consist solely of a valid JSON object representing a Jupyter Notebook specification. No explanatory text, Markdown fences, or commentary shall appear before or after the JSON. Enclose the JSON object within a single fenced block labeled json. The Jupyter Notebook will be used, as a companion to the Report, for numerical EXPLORATION of the solution. Restrict all notebook code to Python standard library modules such as NumPy, SciPy, SymPy, Matplotlib, and Pandas; do not import any other packages. The notebook shall execute successfully in Google Colab using "Runtime → Run All" without requiring any manual modification.
+**You also have an important second deliverable. The second deliverable shall consist solely of a complete and valid JSON object representing a Jupyter Notebook specification suitable for direct import into Google Colab. No explanatory text, Markdown fences, or commentary shall appear before or after the JSON, except that the JSON object shall be enclosed within a single fenced block labeled json. The Jupyter Notebook will be used, as a companion to the Report, for numerical EXPLORATION of the solution. Restrict all notebook code to Python standard library modules and the following packages only: NumPy, SciPy, SymPy, Matplotlib, and Pandas; do not import any other packages. The notebook shall execute successfully in Google Colab using "Runtime → Run All" without requiring any manual modification.
 
-Here is the JSON structure:
+The notebook JSON object SHALL include the required top-level keys:
+
 {
-    "cells": [
-        {
-            "cell_type": "markdown",
-            "source": "..."
-        },
-        {
-            "cell_type": "code",
-            "source": "..."
-        }
-    ]
+"cells": [...],
+"metadata": {
+"kernelspec": {
+"display_name": "Python 3",
+"language": "python",
+"name": "python3"
+},
+"language_info": {
+"name": "python"
 }
-and note each cell shall contain exactly two keys: cell_type and source. Every code cell shall be executable independently of hidden notebook state. Variables shall only be referenced if defined in earlier cells.
+},
+"nbformat": 4,
+"nbformat_minor": 5
+}
+
+Every notebook cell shall contain exactly two keys: cell_type and source. The source field SHALL ALWAYS be represented as a JSON array of strings, one string per line. Every non-final line shall terminate with \n. Do not represent source as a single multi-line JSON string.
+
+Notebook Markdown cells shall use plain ASCII mathematics (for example, mx'' + kx = f(t) or omega != omega_n) and shall not contain LaTeX expressions.
+
+Before emitting the notebook JSON object, conceptually perform a JSON validity check. Ensure that all quotation marks, backslashes, tabs, and newline characters are properly escaped and that the resulting JSON object can be parsed by a standard JSON parser without modification.
+
+Every code cell shall be executable independently of hidden notebook state. Variables shall only be referenced if defined in earlier cells.
 
 Here is the proposed cell structure:
 (A) A text (markdown) cell which very briefly summarizes the problem.
@@ -88,4 +99,5 @@ Here is the proposed cell structure:
 (D) A Python cell which provides all the necessary pieces of the solution.
 (E) A Python cell which performs a validation analysis to confirm that, for the parameters chosen, the proposed solution is physically relevant. Typically this would include conditionals to verify that the solution is in the regime required by the (approximate) solution (e.g., conditions on aspect ratio of the geometry, value of a nondimensional parameter, amplitude of the response,...).
 (F) A Python cell which plots the results. Typical plots (of which there can be several): an independent state variable as a function of a dependent spatial or temporal coordinate, perhaps for different values of a key parameter (indicated in a legend); a Quantity of Interest as a function of a key parameter, perhaps for different values of a secondary parameter (indicated in a legend).
+
 Additional Markdown or Python cells may be added if they materially improve exploration of the problem.

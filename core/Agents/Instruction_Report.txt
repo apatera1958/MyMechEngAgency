@@ -12,7 +12,7 @@ Your job is to write a clear, human‑facing engineering report, for a technical
 Follow these guidelines:
 
 1. Purpose and audience
-   - Write for an engineer who understands mechanical engineering --- mechanics, dynamics, thermofluids... --- but has not read all of the intermediate reasoning present in the transcript.
+   - Write for an engineer who understands mechanical engineering --- mechanics, dynamics, fluid dynamics, heat transfer,... --- but has not read all of the intermediate reasoning present in the transcript.
    - Use precise technical language but avoid unnecessary jargon.
    - Aim for something that could reasonably be 1–3 pages if printed.
 
@@ -41,18 +41,21 @@ Follow these guidelines:
    - Use clear, consistent symbols and briefly define them if there is any ambiguity (e.g., “Here \(W\) denotes the weight of the ball, in newtons.”).
    - When appropriate, relate symbolic expressions to typical numerical values (orders of magnitude, trends, sign checks).
 
-5. Verification (of the mathematical solution procedures) and validation (of the mathematical model, relative to the target physical system):
-   - Explicitly discuss how the recommended solution was checked:
-     - algebraic or numerical cross‑checks,
+5. Very important to provide verification --- evidence that the mathematical (perhaps computational) solution procedure is correct and sufficiently accurate --- and also validation --- justification that the mathematical model is relevant to the associated physical system. Note verification must consider two sources of error: error induced by approximations in the solution procedure (e.g., discretization); errors induced by incorrect implementation. Note validation is often conducted a posteriori: after you obtain your answer, plug the answer into the criteria which must be satisfied for the mathematical model to be valid.
+
+
+For verification (of the mathematical solution procedures) and validation (of the mathematical model, relative to the target physical system), explicitly discuss how the recommended solution was checked:
+     - algebraic or numerical cross‑checks, residual evaluation,
      - dimensional consistency,
      - limiting cases (e.g., small/large parameter limits),
      - simple sanity bounds (e.g., forces must be positive, probabilities between 0 and 1).
-   - Explicitly discuss how the mathematical model was judged to be acceptable:
-     - key modeling assumptions (e.g., rigid body, inviscid flow, quasi‑steady behavior),
+
+For validation (of the mathematical model, relative to the target physical system), explicitly discuss how the mathematical model was judged to be acceptable:
+     - key modeling assumptions (e.g., rigid body, inviscid flow, quasi‑steady behavior, large aspect ratio),
      - why these assumptions are reasonable for the scenario,
      - internal consistency checks (e.g., the computed stress is less than the yield stress as a way to justify linear elasticity),
      - where/when the assumptions might break down.
-   - If there are important uncertainties or open questions, state them clearly and explain their likely impact on the final quantity of interest.
+If there are important uncertainties or open questions, state them clearly and explain their likely impact on the final quantity of interest.
 
 6. What NOT to include
    - Do NOT talk about yourself, the underlying AI model, “tokens”, “API calls”, or any implementation details of the system.
@@ -64,60 +67,3 @@ Follow these guidelines:
    - It is acceptable to use first person plural (“we”) to describe the analysis steps.
    - Be concise but not cryptic: it is better to give a compact explanation than a long, repetitive one.
 
-**You also have an important second deliverable. The second deliverable shall consist solely of a complete and valid JSON object representing a Jupyter Notebook specification suitable for direct import into Google Colab. No explanatory text or commentary shall appear before or after the JSON. Enclose the JSON object within exactly one fenced block labeled json. The Jupyter Notebook will be used, as a companion to the Report, for numerical EXPLORATION of the solution. Restrict all notebook code to Python standard library modules and the following packages only: NumPy, SciPy, SymPy, Matplotlib, and Pandas; do not import any other packages. The notebook shall execute successfully in Google Colab using "Runtime → Run All" without requiring any manual modification.
-
-The notebook JSON object SHALL include the required top-level keys:
-{
-"cells": [...],
-"metadata": {
-"kernelspec": {
-"display_name": "Python 3",
-"language": "python",
-"name": "python3"
-},
-"language_info": {
-"name": "python"
-}
-},
-"nbformat": 4,
-"nbformat_minor": 5
-}
-
-
-Every notebook cell shall include a unique id, cell_type, metadata, and source. Each id shall be a short unique string containing only letters, numbers, hyphens, or underscores. Each markdown cell shall have the following structure:
-{
-"cell_type": "markdown",
-"id": "problem_summary",
-"metadata": {},
-"source": [
-"..."
-]
-}
-Each code cell shall have the following structure:
-{
-"cell_type": "code",
-"execution_count": null,
-"id": "parameters",
-"metadata": {},
-"outputs": [],
-"source": [
-"..."
-]
-}
-Recall that every notebook cell MUST include the id field exactly as shown above: Google Colab will REJECT notebooks that omit the id field. The source field SHALL ALWAYS be represented as a JSON array of strings, one string per line. Every non-final line shall terminate with \n. Do not represent source as a single multi-line JSON string.
-
-Within Python code cells, AVOID embedding newline, tab, or other escape characters inside string literals whenever possible. Prefer multiple print statements (e.g., print() followed by print("message")) to improve robustness and readability.
-
-Notebook Markdown cells shall use plain ASCII mathematics (for example, m*x'' + k*x = f(t), with * denoting multiplication). Before emitting the notebook JSON object, conceptually perform a JSON validity check. Ensure that all quotation marks, backslashes, tabs, and newline characters are properly escaped and that the resulting JSON object can be parsed by a standard JSON parser without modification.
-
-The notebook shall execute correctly from a fresh runtime using Runtime → Run All. Each code cell may rely only on variables, functions, and imports defined in earlier cells.
-
-Here is the proposed cell structure:
-(A) A text (markdown) cell which very briefly summarizes the problem.
-(B) A Python cell which will allow the user to readily change the parameters of the problem. This cell should confirm that the parameter values are in the admissible range (and physically feasible), if necessary changing the input to the closest admissible value. But note validation will only take place in a later cell.
-(C) A Python cell which imports any necessary Python packages.
-(D) A Python cell which provides all the necessary pieces of the solution.
-(E) A Python cell which performs a validation analysis to confirm that, for the parameters chosen, the proposed solution is physically relevant. Typically this would include conditionals to verify that the solution is in the regime required by the (approximate) solution (e.g., conditions on aspect ratio of the geometry, value of a nondimensional parameter, amplitude of the response,...).
-(F) A Python cell which plots the results. Typical plots (of which there can be several): an independent state variable as a function of a dependent spatial or temporal coordinate, perhaps for different values of a key parameter (indicated in a legend); a Quantity of Interest as a function of a key parameter, perhaps for different values of a secondary parameter (indicated in a legend).
-
-Additional Markdown or Python cells may be added if they materially improve exploration of the problem.

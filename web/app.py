@@ -110,6 +110,18 @@ def _latest_bundle(prob_dir: Path | str | None) -> Path | None:
     return bundles[0] if bundles else None
 
 
+def _exploration_notebook_path(job) -> Path | None:
+    """Return the generated Explore notebook path when it exists."""
+    try:
+        if job and job["prob_dir"]:
+            path = Path(job["prob_dir"]) / "Engineering_Exploration.ipynb"
+            if path.exists():
+                return path
+    except Exception:
+        pass
+    return None
+
+
 def _prepare_transcript_for_browser(html: str) -> str:
     """Prepare transcript.html for online viewing only.
 
@@ -369,7 +381,14 @@ def jobs():
     if auth:
         return auth
     sid = _ensure_session_id()
-    return render_template("jobs.html", jobs=db.session_jobs(sid, 50), retention_hours=JOB_RETENTION_HOURS)
+    session_jobs = db.session_jobs(sid, 50)
+    notebook_jobs = {job["id"] for job in session_jobs if _exploration_notebook_path(job)}
+    return render_template(
+        "jobs.html",
+        jobs=session_jobs,
+        notebook_jobs=notebook_jobs,
+        retention_hours=JOB_RETENTION_HOURS,
+    )
 
 
 def _session_can_access(job) -> bool:
@@ -394,7 +413,36 @@ def job_status(job_id: str):
         job=job,
         parent=parent,
         bundle=bundle,
+        exploration_notebook=_exploration_notebook_path(job),
     )
+
+
+@app.route("/job/<job_id>/explore", methods=["POST"])
+def explore_job(job_id: str):
+    auth = _require_auth()
+    if auth:
+        return auth
+    job = db.one(job_id)
+    if not _session_can_access(job):
+        abort(404)
+    if job["status"] != "complete":
+        flash("Explore is available only after the selected job is complete.")
+        return redirect(url_for("job_status", job_id=job_id))
+    if not job["stamp"] or not job["transcript_txt"] or not job["result_html"]:
+        flash("Explore is unavailable because the transcript is not ready.")
+        return redirect(url_for("job_status", job_id=job_id))
+    if db.count_active_jobs() >= MAX_ACTIVE_JOBS:
+        flash(f"The queue is currently full. Please try again shortly. Maximum active jobs: {MAX_ACTIVE_JOBS}.")
+        return redirect(url_for("job_status", job_id=job_id))
+
+    db.update_job(
+        job_id,
+        kind="explore",
+        status="queued",
+        error=None,
+    )
+    flash("Engineering Exploration notebook queued.")
+    return redirect(url_for("job_status", job_id=job_id))
 
 
 @app.route("/job/<job_id>/continue", methods=["POST"])
@@ -506,6 +554,20 @@ def download(job_id: str):
     if not bundle or not bundle.exists():
         abort(404)
     return send_file(bundle, as_attachment=True, download_name=bundle.name)
+
+
+@app.route("/notebook/<job_id>")
+def download_notebook(job_id: str):
+    auth = _require_auth()
+    if auth:
+        return auth
+    job = db.one(job_id)
+    if not _session_can_access(job):
+        abort(404)
+    path = _exploration_notebook_path(job)
+    if not path:
+        abort(404)
+    return send_file(path, as_attachment=True, download_name="Engineering_Exploration.ipynb")
 
 
 @app.route("/log/<job_id>")

@@ -9,6 +9,7 @@ from pathlib import Path
 from datetime import datetime
 import db
 from continuation_helper import run_continuation
+from explore_helper import run_explore
 
 ROOT = Path(__file__).resolve().parents[1]
 CORE = ROOT / "core"
@@ -128,6 +129,25 @@ def run_cont(job) -> None:
     except Exception as e:
         db.update_job(jid, status="failed", error=str(e))
 
+def run_explore_job(job) -> None:
+    load_openai_env()
+    jid = job["id"]
+    log_path = Path(job["log_path"])
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    if job["user_openai_key"]:
+        os.environ["OPENAI_API_KEY"] = job["user_openai_key"]
+    db.update_job(jid, status="running")
+    try:
+        with log_path.open("w", encoding="utf-8") as log:
+            log.write(f"Explore for job={jid} stamp={job['stamp']}\n")
+            notebook_path = run_explore(Path(job["prob_dir"]), job["stamp"])
+            log.write(f"Notebook written: {notebook_path}\n")
+        # Return the visible row to its normal completed-analysis state.
+        db.update_job(jid, kind="analysis", status="complete", error=None)
+    except Exception as e:
+        db.update_job(jid, status="failed", error=str(e))
+
+
 def main() -> None:
     db.init_db()
     print("MyAgency worker started. Press Ctrl-C to stop.", flush=True)
@@ -138,6 +158,8 @@ def main() -> None:
             continue
         if job["kind"] == "continuation":
             run_cont(job)
+        elif job["kind"] == "explore":
+            run_explore_job(job)
         else:
             run_analysis(job)
 

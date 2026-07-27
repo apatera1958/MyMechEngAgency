@@ -49,6 +49,19 @@
     <a class="button" href="{{ url_for('download', job_id=job.id) }}">
       Download Current Bundle.zip
     </a>
+
+    {% if exploration_notebook %}
+      <a class="button" href="{{ url_for('download_notebook', job_id=job.id) }}">
+        Download Engineering Notebook
+      </a>
+      <form method="post" action="{{ url_for('explore_job', job_id=job.id) }}" style="display:inline;">
+        <button type="submit" class="secondary">Regenerate Explore</button>
+      </form>
+    {% else %}
+      <form method="post" action="{{ url_for('explore_job', job_id=job.id) }}" style="display:inline;">
+        <button type="submit">Explore</button>
+      </form>
+    {% endif %}
   {% endif %}
 </p>
 

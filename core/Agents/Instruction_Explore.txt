@@ -1,0 +1,58 @@
+The deliverable is a complete and valid JSON object representing a Jupyter Notebook specification suitable for direct import into Google Colab. No explanatory text or commentary shall appear before or after the JSON. Enclose the JSON object within exactly one fenced block labeled json. The Jupyter Notebook will be used, as a companion to the Report, for numerical EXPLORATION of the solution. Restrict all notebook code to Python standard library modules and the following packages only: NumPy, SciPy, SymPy, Matplotlib, and Pandas; do not import any other packages. The notebook shall execute successfully in Google Colab using "Runtime → Run All" without requiring any manual modification.
+
+The notebook JSON object SHALL include the required top-level keys:
+{
+"cells": [...],
+"metadata": {
+"kernelspec": {
+"display_name": "Python 3",
+"language": "python",
+"name": "python3"
+},
+"language_info": {
+"name": "python"
+}
+},
+"nbformat": 4,
+"nbformat_minor": 5
+}
+
+
+Every notebook cell shall include a unique id, cell_type, metadata, and source. Each id shall be a short unique string containing only letters, numbers, hyphens, or underscores. Each markdown cell shall have the following structure:
+{
+"cell_type": "markdown",
+"id": "problem_summary",
+"metadata": {},
+"source": [
+"..."
+]
+}
+Each code cell shall have the following structure:
+{
+"cell_type": "code",
+"execution_count": null,
+"id": "parameters",
+"metadata": {},
+"outputs": [],
+"source": [
+"..."
+]
+}
+Recall that every notebook cell MUST include the id field exactly as shown above: Google Colab will REJECT notebooks that omit the id field. The source field SHALL ALWAYS be represented as a JSON array of strings, one string per line. Every non-final line shall terminate with \n. Do not represent source as a single multi-line JSON string.
+
+Within Python code cells, AVOID embedding newline, tab, or other escape characters inside string literals whenever possible. Prefer multiple print statements (e.g., print() followed by print("message")) to improve robustness and readability.
+
+Notebook Markdown cells shall use plain ASCII mathematics (for example, m*x'' + k*x = f(t), with * denoting multiplication). Avoid markdown ambiguity (e.g., multiplication as "x" can be confused with multiplication). Before emitting the notebook JSON object, conceptually perform a JSON validity check. Ensure that all quotation marks, backslashes, tabs, and newline characters are properly escaped and that the resulting JSON object can be parsed by a standard JSON parser without modification.
+
+The notebook shall execute correctly from a fresh runtime using Runtime → Run All. Each code cell may rely only on variables, functions, and imports defined in earlier cells.
+
+Here is the proposed cell structure:
+(A) A text (markdown) cell which very briefly summarizes the problem.
+(B) A Python cell which will allow the user to readily change the parameters of the problem. This cell should confirm that the parameter values are in the admissible range (and physically feasible), if necessary changing the input to the closest admissible value. But note validation will only take place in a later cell. Initial parameter values: these will typically be found in  the Report transcript you have received; if not, you should choose values representative of some typical illustrative physical system.
+(C) A Python cell which imports any necessary Python packages.
+(D) A Python cell which provides all the necessary parts of the solution.
+(E) A Python cell which provides a verification analysis based on the Report.
+(F) A Python cell which performs a validation analysis to confirm that, for the parameters chosen, the proposed solution is physically relevant. Typically this would include (in the Python code) conditionals to verify that the solution is in the regime required by the mathematical model (e.g., conditions on aspect ratio of the geometry, value of a nondimensional parameter, amplitude of the response,...) which evaluate to True or False.
+(G) A Python cell which plots the results. Typical plots (of which there can be several): an independent state variable as a function of a dependent spatial or temporal coordinate, perhaps for different values of a key parameter (indicated in a legend); a Quantity of Interest as a function of a key parameter, perhaps for different values of a secondary parameter (indicated in a legend).
+
+Additional Markdown or Python cells may be added if they materially improve exploration of the problem.

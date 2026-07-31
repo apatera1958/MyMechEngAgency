@@ -66,16 +66,16 @@
   {% elif job.status in ['queued', 'running'] %}
     {% if exploration_notebook %}
       <button type="button" disabled
-              style="opacity:0.45; cursor:not-allowed; filter:grayscale(100%);">
+              style="background:#d1d5db; color:#6b7280; border-color:#9ca3af; opacity:1; cursor:not-allowed; box-shadow:none;">
         Download Engineering Notebook
       </button>
       <button type="button" class="secondary" disabled
-              style="opacity:0.45; cursor:not-allowed; filter:grayscale(100%);">
+              style="background:#d1d5db; color:#6b7280; border-color:#9ca3af; opacity:1; cursor:not-allowed; box-shadow:none;">
         Regenerate Engineering Notebook
       </button>
     {% else %}
       <button type="button" disabled
-              style="opacity:0.45; cursor:not-allowed; filter:grayscale(100%);">
+              style="background:#d1d5db; color:#6b7280; border-color:#9ca3af; opacity:1; cursor:not-allowed; box-shadow:none;">
         Explore
       </button>
     {% endif %}

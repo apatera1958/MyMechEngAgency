@@ -35,6 +35,7 @@ Follow these guidelines:
      - What was modeled?
      - What key equations or balances were used (e.g., force balance, energy balance, conservation laws)?
      - Why is the recommended solution preferred over plausible alternatives?
+   - DO import numerical solutions and summary results and tables from upstream solutions, but do NOT recreate/recompute the numerical results.
 
 4. Math and notation
    - Present equations and formulas using LaTeX, with `$...$` or `\(...\)` for inline math and `$$...$$` or `\[...\]` for display math.

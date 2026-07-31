@@ -20,4 +20,5 @@ You can also use Code Interpreter (sympy) for extensive symbolic computations, t
 
 It is very important to use Code Interpreter for numerical evaluations and (more involved) symbolic evaluations. However, it is equally important that the Assistant responses are "self-contained", not just reporting the results of the Python codes, but also including key parts of the derivation.
 
+Make sure to clearly state the Quantities of Interest (QoI). A QoI in general will be a scalar function of the parameters. A QoI should not be a function of the coordinate variables (space or time) but will often be deduced from a state variable which is a function of a coordinate variable (for example, the QoI might be the temporal period of a displacement, or a QoI might be the maximum in space of a displacement). 
 

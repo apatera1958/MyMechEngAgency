@@ -17,23 +17,23 @@
   <p><strong>Created:</strong> {{ job.created_at }}</p>
 
   {% if job.original_filename %}
-    <p><strong>Original PDF:</strong> {{ job.original_filename }}</p>
+  <p><strong>Original PDF:</strong> {{ job.original_filename }}</p>
   {% endif %}
 
   {% if job.pdf_page_count %}
-    <p><strong>PDF pages:</strong> {{ job.pdf_page_count }}</p>
+  <p><strong>PDF pages:</strong> {{ job.pdf_page_count }}</p>
   {% endif %}
 
   {% if job.hints_filename %}
-    <p><strong>Optional hints:</strong> {{ job.hints_filename }} → <code>PROBhints.txt</code></p>
+  <p><strong>Optional hints:</strong> {{ job.hints_filename }} → <code>PROBhints.txt</code></p>
   {% endif %}
 
   {% if job.models_filename %}
-    <p><strong>Optional model override:</strong> {{ job.models_filename }} → <code>PROBgpt_models.yaml</code></p>
+  <p><strong>Optional model override:</strong> {{ job.models_filename }} → <code>PROBgpt_models.yaml</code></p>
   {% endif %}
 
   {% if job.error %}
-    <p class="error"><strong>Error:</strong> {{ job.error }}</p>
+  <p class="error"><strong>Error:</strong> {{ job.error }}</p>
   {% endif %}
 </div>
 
@@ -43,50 +43,52 @@
   <a class="button secondary" href="{{ url_for('log', job_id=job.id) }}">View log</a>
 
   {% if job.status == 'complete' and job.result_html %}
-    <a class="button secondary" href="{{ url_for('transcript', job_id=job.id) }}" target="_blank" rel="noopener noreferrer">
-      View Current Transcript
-    </a>
-    <a class="button" href="{{ url_for('download', job_id=job.id) }}">
-      Download Current Bundle.zip
-    </a>
+  <a class="button secondary" href="{{ url_for('transcript', job_id=job.id) }}" target="_blank"
+    rel="noopener noreferrer">
+    View Current Transcript
+  </a>
+  <a class="button" href="{{ url_for('download', job_id=job.id) }}">
+    Download Current Bundle.zip
+  </a>
 
-    {% if exploration_notebook %}
-      <a class="button" href="{{ url_for('download_notebook', job_id=job.id) }}">
-        Download Engineering Notebook
-      </a>
-      <form method="post" action="{{ url_for('explore_job', job_id=job.id) }}" style="display:inline;">
-        <button type="submit" class="secondary">Regenerate Engineering Notebook</button>
-      </form>
-    {% else %}
-      <form method="post" action="{{ url_for('explore_job', job_id=job.id) }}" style="display:inline;">
-        <button type="submit">Explore</button>
-      </form>
-    {% endif %}
+  {% if exploration_notebook %}
+  <a class="button" href="{{ url_for('download_notebook', job_id=job.id) }}">
+    Download Current Engineering Notebook
+  </a>
+<form method="post" action="{{ url_for('explore_job', job_id=job.id) }}" style="display:inline;">
+  <button type="submit" class="secondary">Generate Engineering Notebook</button>
+</form>
+{% else %}
+<form method="post" action="{{ url_for('explore_job', job_id=job.id) }}" style="display:inline;">
+  <button type="submit">Explore</button>
+</form>
+{% endif %}
 
-  {% elif job.status in ['queued', 'running'] %}
-    {% if exploration_notebook %}
-      <button type="button" disabled
-              style="background:#d1d5db; color:#6b7280; border-color:#9ca3af; opacity:1; cursor:not-allowed; box-shadow:none;">
-        Download Engineering Notebook
-      </button>
-      <button type="button" class="secondary" disabled
-              style="background:#d1d5db; color:#6b7280; border-color:#9ca3af; opacity:1; cursor:not-allowed; box-shadow:none;">
-        Regenerate Engineering Notebook
-      </button>
-    {% else %}
-      <button type="button" disabled
-              style="background:#d1d5db; color:#6b7280; border-color:#9ca3af; opacity:1; cursor:not-allowed; box-shadow:none;">
-        Explore
-      </button>
-    {% endif %}
-  {% endif %}
+{% elif job.status in ['queued', 'running'] %}
+{% if exploration_notebook %}
+<button type="button" disabled
+  style="background:#d1d5db; color:#6b7280; border-color:#9ca3af; opacity:1; cursor:not-allowed; box-shadow:none;">
+  Download Current Engineering Notebook
+</button>
+<button type="button" class="secondary" disabled
+  style="background:#d1d5db; color:#6b7280; border-color:#9ca3af; opacity:1; cursor:not-allowed; box-shadow:none;">
+  Generate Engineering Notebook
+</button>
+{% else %}
+<button type="button" disabled
+  style="background:#d1d5db; color:#6b7280; border-color:#9ca3af; opacity:1; cursor:not-allowed; box-shadow:none;">
+  Explore
+</button>
+{% endif %}
+{% endif %}
 </p>
 
 {% if job.status == 'complete' and job.result_html %}
 <section class="continuation">
   <h2>Ask another follow-on question</h2>
   <form method="post" action="{{ url_for('continue_job', job_id=job.id) }}" class="panel-form">
-    <textarea name="question" rows="5" placeholder="Ask a follow-on question about this current transcript..." required></textarea>
+    <textarea name="question" rows="5" placeholder="Ask a follow-on question about this current transcript..."
+      required></textarea>
     <button type="submit">Queue Follow-On</button>
   </form>
 </section>

@@ -18,7 +18,7 @@ Follow these guidelines:
 
 2. Content structure
    Organize the report into clearly labeled sections, for example:
-   - Problem summary, including a complete description of parameters and parameter ranges and conditions.
+   - Problem summary, including a complete description of parameters and parameter ranges and conditions, and also Quantities of Interest (QoIs).
    - Recommended solution (including the key quantity or formula of interest).
    - Key reasoning and modeling assumptions.
    - Verification (checks of the solution procedure).

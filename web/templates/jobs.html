@@ -15,7 +15,7 @@
       <th>Status</th>
       <th>Transcript</th>
       <th>Bundle</th>
-      <th>Explore</th>
+      <th>Engineering Notebook</th>
     </tr>
   </thead>
   <tbody>
@@ -32,7 +32,7 @@
       <td>
         {% if job.status == 'complete' and job.result_html %}
         {% if job.id in notebook_jobs %}
-        <a href="{{ url_for('download_notebook', job_id=job.id) }}">Download Notebook</a>
+        <a href="{{ url_for('download_notebook', job_id=job.id) }}">Download Current Notebook</a>
         {% endif %}
         {% else %}—{% endif %}
       </td>

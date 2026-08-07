@@ -4,7 +4,7 @@ import shutil
 import uuid
 import re
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, send_file, abort, flash, session, Response
 from werkzeug.utils import secure_filename
 from . import db
@@ -27,12 +27,15 @@ MAX_ACTIVE_JOBS = int(os.environ.get("MYAGENCY_MAX_ACTIVE_JOBS", "10"))
 MAX_JOBS_PER_SESSION_DAY = int(os.environ.get("MYAGENCY_MAX_JOBS_PER_SESSION_DAY", "3"))
 MAX_JOBS_PER_IP_DAY = int(os.environ.get("MYAGENCY_MAX_JOBS_PER_IP_DAY", "10"))
 JOB_RETENTION_HOURS = int(os.environ.get("MYAGENCY_JOB_RETENTION_HOURS", "48"))
+SESSION_LIFETIME_DAYS = int(os.environ.get("MYAGENCY_SESSION_LIFETIME_DAYS", "30"))
 BACKGROUND_SITE_URL = os.environ.get("MYAGENCY_BACKGROUND_SITE_URL", "https://sites.mit.edu/mech-eng-analysis-ai/").strip()
 SITE_PASSWORD = os.environ.get("MYAGENCY_SITE_PASSWORD", "").strip()
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("MYAGENCY_FLASK_SECRET", "development-secret-change-me")
 app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_MB * 1024 * 1024
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=SESSION_LIFETIME_DAYS)
+app.config["SESSION_REFRESH_EACH_REQUEST"] = True
 
 
 def _job_id() -> str:
@@ -45,6 +48,10 @@ def _server_key_available() -> bool:
 
 
 def _ensure_session_id() -> str:
+    # Keep the browser identity across Render deploys/restarts and ordinary
+    # browser restarts.  The signed cookie remains protected by the fixed
+    # MYAGENCY_FLASK_SECRET.
+    session.permanent = True
     sid = session.get("session_id")
     if not sid:
         sid = uuid.uuid4().hex
@@ -591,6 +598,29 @@ def log(job_id: str):
     if not path.exists():
         return "Log file has not been created yet.", 200, {"Content-Type": "text/plain; charset=utf-8"}
     return send_file(path, mimetype="text/plain")
+
+
+@app.route("/admin/session-debug")
+def admin_session_debug():
+    """Small diagnostic for checking browser-session continuity after deploys."""
+    password = os.environ.get("MYAGENCY_ADMIN_PASSWORD", "")
+    if password and not session.get("admin_ok"):
+        return redirect(url_for("admin"))
+
+    sid = session.get("session_id")
+    rows = db.recent(20)
+    lines = [
+        f"Current browser session_id: {sid or '(none)'}",
+        "",
+        "Recent jobs:",
+    ]
+    for row in rows:
+        lines.append(
+            f"{row['id']}  status={row['status']}  "
+            f"job_name={row['job_name'] or ''!r}  "
+            f"session_id={row['session_id'] or '(none)'}"
+        )
+    return Response("\n".join(lines) + "\n", mimetype="text/plain")
 
 
 @app.route("/admin", methods=["GET", "POST"])

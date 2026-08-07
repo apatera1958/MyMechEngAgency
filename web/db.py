@@ -1,12 +1,21 @@
 from __future__ import annotations
 
+import os
 import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[1]
-DB_PATH = ROOT / "jobs" / "jobs.sqlite"
+
+# Keep the historical local path by default.  On Render, setting
+# MYAGENCY_STORAGE_ROOT redirects the SQLite database beneath the persistent
+# disk mount.
+_STORAGE_ROOT_RAW = os.environ.get("MYAGENCY_STORAGE_ROOT", "").strip()
+if _STORAGE_ROOT_RAW:
+    DB_PATH = Path(_STORAGE_ROOT_RAW).expanduser() / "jobs" / "jobs.sqlite"
+else:
+    DB_PATH = ROOT / "jobs" / "jobs.sqlite"
 
 SQLITE_TIMEOUT_SECONDS = 30.0
 SQLITE_BUSY_TIMEOUT_MS = 30_000

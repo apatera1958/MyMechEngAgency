@@ -10,8 +10,17 @@ from werkzeug.utils import secure_filename
 from . import db
 
 ROOT = Path(__file__).resolve().parents[1]
-UPLOADS = ROOT / "uploads"
-RESULTS = ROOT / "results"
+
+# Runtime state can be redirected to a persistent Render disk while preserving
+# the existing local-development layout when MYAGENCY_STORAGE_ROOT is unset.
+_STORAGE_ROOT_RAW = os.environ.get("MYAGENCY_STORAGE_ROOT", "").strip()
+STORAGE_ROOT = Path(_STORAGE_ROOT_RAW).expanduser() if _STORAGE_ROOT_RAW else ROOT
+UPLOADS = STORAGE_ROOT / "uploads"
+RESULTS = STORAGE_ROOT / "results"
+LOGS = STORAGE_ROOT / "logs"
+
+for _directory in (UPLOADS, RESULTS, LOGS):
+    _directory.mkdir(parents=True, exist_ok=True)
 MAX_UPLOAD_MB = int(os.environ.get("MYAGENCY_MAX_UPLOAD_MB", "25"))
 MAX_PDF_PAGES = int(os.environ.get("MYAGENCY_MAX_PDF_PAGES", "5"))
 MAX_ACTIVE_JOBS = int(os.environ.get("MYAGENCY_MAX_ACTIVE_JOBS", "10"))
@@ -369,7 +378,7 @@ def submit():
         problem_dir=str(problem_dir),
         prob_dir=str(prob_dir),
         n_agents=n_agents,
-        log_path=str(ROOT / "logs" / f"{jid}.log"),
+        log_path=str(LOGS / f"{jid}.log"),
     )
     flash("Job queued.")
     return redirect(url_for("job_status", job_id=jid))

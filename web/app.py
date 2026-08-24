@@ -24,6 +24,7 @@ for _directory in (UPLOADS, RESULTS, LOGS):
     _directory.mkdir(parents=True, exist_ok=True)
 MAX_UPLOAD_MB = int(os.environ.get("MYAGENCY_MAX_UPLOAD_MB", "25"))
 MAX_PDF_PAGES = int(os.environ.get("MYAGENCY_MAX_PDF_PAGES", "5"))
+MAX_AGENT_SOLVES_PER_JOB = max(1, int(os.environ.get("MYAGENCY_MAX_AGENT_SOLVES_PER_JOB", "4")))
 MAX_ACTIVE_JOBS = int(os.environ.get("MYAGENCY_MAX_ACTIVE_JOBS", "10"))
 MAX_JOBS_PER_SESSION_DAY = int(os.environ.get("MYAGENCY_MAX_JOBS_PER_SESSION_DAY", "3"))
 MAX_JOBS_PER_IP_DAY = int(os.environ.get("MYAGENCY_MAX_JOBS_PER_IP_DAY", "10"))
@@ -300,6 +301,7 @@ def submit():
             "submit.html",
             max_upload_mb=MAX_UPLOAD_MB,
             max_pdf_pages=MAX_PDF_PAGES,
+            max_agent_solves_per_job=MAX_AGENT_SOLVES_PER_JOB,
             server_key_available=server_key,
             max_jobs_per_session_day=MAX_JOBS_PER_SESSION_DAY,
             job_name_suggestions=_session_job_name_suggestions(sid),
@@ -368,8 +370,11 @@ def submit():
         flash(str(e))
         return redirect(url_for("submit"))
 
-    n_agents = int(request.form.get("n_agents") or "2")
-    n_agents = max(1, min(n_agents, 8))
+    try:
+        n_agents = int(request.form.get("n_agents") or "2")
+    except (TypeError, ValueError):
+        n_agents = 2
+    n_agents = max(1, min(n_agents, MAX_AGENT_SOLVES_PER_JOB))
 
     db.insert_job(
         id=jid,

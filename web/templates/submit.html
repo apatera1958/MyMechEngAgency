@@ -31,8 +31,9 @@
   <p class="hint">This server has no server-side OpenAI key configured, so your key is required for this job.</p>
   {% endif %}
 
-  <label>Number of solve agents</label>
-  <input type="number" name="n_agents" value="2" min="1" max="8">
+  <label>Number of Agent Solves</label>
+  <input type="number" name="n_agents" value="2" min="1" max="{{ max_agent_solves_per_job }}">
+  <p class="hint">Default: 2. Maximum allowed for this service: {{ max_agent_solves_per_job }}.</p>
   <button type="submit">Queue job</button>
 </form>
 {% endblock %}

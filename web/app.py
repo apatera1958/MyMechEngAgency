@@ -3,6 +3,7 @@ import os
 import shutil
 import uuid
 import re
+import time
 from pathlib import Path
 from datetime import datetime, timedelta
 from flask import Flask, render_template, request, redirect, url_for, send_file, abort, flash, session, Response
@@ -28,6 +29,7 @@ MAX_JOBS_PER_SESSION_DAY = int(os.environ.get("MYAGENCY_MAX_JOBS_PER_SESSION_DAY
 MAX_JOBS_PER_IP_DAY = int(os.environ.get("MYAGENCY_MAX_JOBS_PER_IP_DAY", "10"))
 JOB_RETENTION_HOURS = int(os.environ.get("MYAGENCY_JOB_RETENTION_HOURS", "48"))
 SESSION_LIFETIME_DAYS = int(os.environ.get("MYAGENCY_SESSION_LIFETIME_DAYS", "30"))
+ADMIN_SESSION_MINUTES = int(os.environ.get("MYAGENCY_ADMIN_SESSION_MINUTES", "60"))
 BACKGROUND_SITE_URL = os.environ.get("MYAGENCY_BACKGROUND_SITE_URL", "https://sites.mit.edu/mech-eng-analysis-ai/").strip()
 SITE_PASSWORD = os.environ.get("MYAGENCY_SITE_PASSWORD", "").strip()
 
@@ -600,11 +602,26 @@ def log(job_id: str):
     return send_file(path, mimetype="text/plain")
 
 
+def _admin_authorized() -> bool:
+    """Return True only while the short-lived admin authorization is valid."""
+    try:
+        expires_at = float(session.get("admin_ok_until", 0))
+    except (TypeError, ValueError):
+        expires_at = 0.0
+
+    if expires_at <= time.time():
+        session.pop("admin_ok_until", None)
+        return False
+    return True
+
+
 @app.route("/admin/session-debug")
 def admin_session_debug():
     """Small diagnostic for checking browser-session continuity after deploys."""
-    password = os.environ.get("MYAGENCY_ADMIN_PASSWORD", "")
-    if password and not session.get("admin_ok"):
+    password = os.environ.get("MYAGENCY_ADMIN_PASSWORD", "").strip()
+    if not password:
+        return "Admin access is not configured.", 503
+    if not _admin_authorized():
         return redirect(url_for("admin"))
 
     sid = session.get("session_id")
@@ -625,15 +642,20 @@ def admin_session_debug():
 
 @app.route("/admin", methods=["GET", "POST"])
 def admin():
-    password = os.environ.get("MYAGENCY_ADMIN_PASSWORD", "")
-    if password:
-        if request.method == "POST":
-            if (request.form.get("password") or "") == password:
-                session["admin_ok"] = True
-            else:
-                flash("Incorrect admin password.")
-        if not session.get("admin_ok"):
-            return render_template("admin_login.html")
+    password = os.environ.get("MYAGENCY_ADMIN_PASSWORD", "").strip()
+
+    # Fail closed: /admin is unavailable unless an admin password is configured.
+    if not password:
+        return "Admin access is not configured.", 503
+
+    if request.method == "POST":
+        if (request.form.get("password") or "") == password:
+            session["admin_ok_until"] = time.time() + ADMIN_SESSION_MINUTES * 60
+            return redirect(url_for("admin"))
+        flash("Incorrect admin password.")
+
+    if not _admin_authorized():
+        return render_template("admin_login.html")
     return render_template(
         "admin.html",
         jobs=db.recent(100),

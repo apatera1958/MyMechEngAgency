@@ -350,21 +350,23 @@ def fail_job_if_running(job_id: str, error: str) -> bool:
 
 
 def count_jobs_for_user_since(user_id: int, since: str) -> int:
+    """Count original job rows created for this user in the time window."""
     with connect() as con:
         row = con.execute(
-            "SELECT COUNT(*) AS n FROM jobs WHERE user_id=? AND created_at>=? AND kind='analysis'",
+            "SELECT COUNT(*) AS n FROM jobs WHERE user_id=? AND created_at>=?",
             (user_id, since),
         ).fetchone()
-        return int(row["n"])
+        return int(row["n"] or 0)
 
 
 def count_jobs_for_ip_since(ip: str, since: str) -> int:
+    """Count original job rows created from this network address in the time window."""
     with connect() as con:
         row = con.execute(
-            "SELECT COUNT(*) AS n FROM jobs WHERE requester_ip=? AND created_at>=? AND kind='analysis'",
+            "SELECT COUNT(*) AS n FROM jobs WHERE requester_ip=? AND created_at>=?",
             (ip, since),
         ).fetchone()
-        return int(row["n"])
+        return int(row["n"] or 0)
 
 
 def count_active_jobs() -> int:

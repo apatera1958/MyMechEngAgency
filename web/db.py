@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS jobs (
     parent_id TEXT,
     status TEXT NOT NULL,
     created_at TEXT NOT NULL,
+    queued_at TEXT,
     updated_at TEXT NOT NULL,
     job_name TEXT,
     owner_email TEXT,
@@ -79,12 +80,19 @@ MIGRATION_COLUMNS = {
         "pdf_page_count": "INTEGER",
         "hints_filename": "TEXT",
         "models_filename": "TEXT",
+        "queued_at": "TEXT",
     }
 }
 
 
 def now() -> str:
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def queue_now() -> str:
+    # Microseconds preserve FIFO ordering when multiple queue events occur
+    # within the same second.
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
 
 
 def cutoff(hours: int) -> str:
@@ -122,6 +130,16 @@ def init_db() -> None:
         con.executescript(SCHEMA)
         for table, cols in MIGRATION_COLUMNS.items():
             _ensure_columns(con, table, cols)
+
+        # Existing jobs predate queued_at. Preserve their historical order.
+        con.execute(
+            "UPDATE jobs SET queued_at=created_at "
+            "WHERE queued_at IS NULL OR queued_at=''"
+        )
+        con.execute(
+            "CREATE INDEX IF NOT EXISTS idx_jobs_status_queued "
+            "ON jobs(status, queued_at, id)"
+        )
 
 
 def one(job_id: str):
@@ -201,7 +219,7 @@ def queued_one():
     """
     with connect() as con:
         return con.execute(
-            "SELECT * FROM jobs WHERE status='queued' ORDER BY created_at ASC, id ASC LIMIT 1"
+            "SELECT * FROM jobs WHERE status='queued' ORDER BY COALESCE(queued_at, created_at) ASC, id ASC LIMIT 1"
         ).fetchone()
 
 
@@ -217,7 +235,7 @@ def claim_queued_job():
         con.execute("BEGIN IMMEDIATE")
         row = con.execute(
             "SELECT id FROM jobs WHERE status='queued' "
-            "ORDER BY created_at ASC, id ASC LIMIT 1"
+            "ORDER BY COALESCE(queued_at, created_at) ASC, id ASC LIMIT 1"
         ).fetchone()
         if row is None:
             con.commit()
@@ -258,7 +276,7 @@ def oldest_queued_uses_user_key() -> bool:
     with connect() as con:
         row = con.execute(
             "SELECT user_openai_key FROM jobs WHERE status='queued' "
-            "ORDER BY created_at ASC, id ASC LIMIT 1"
+            "ORDER BY COALESCE(queued_at, created_at) ASC, id ASC LIMIT 1"
         ).fetchone()
         return bool(row and row["user_openai_key"])
 
@@ -295,10 +313,10 @@ def requeue_stale_running_jobs(stale_minutes: int) -> int:
         cur = con.execute(
             """
             UPDATE jobs
-            SET status='queued', updated_at=?, error=NULL
+            SET status='queued', queued_at=?, updated_at=?, error=NULL
             WHERE status='running' AND updated_at < ?
             """,
-            (ts, stale_before),
+            (queue_now(), ts, stale_before),
         )
         return int(cur.rowcount)
 
@@ -309,10 +327,10 @@ def requeue_job_if_running(job_id: str, error: str | None = None) -> bool:
         cur = con.execute(
             """
             UPDATE jobs
-            SET status='queued', updated_at=?, error=?
+            SET status='queued', queued_at=?, updated_at=?, error=?
             WHERE id=? AND status='running'
             """,
-            (now(), error, job_id),
+            (queue_now(), now(), error, job_id),
         )
         return cur.rowcount == 1
 
@@ -380,6 +398,7 @@ def insert_job(**kw) -> None:
         "parent_id": kw.get("parent_id"),
         "status": kw.get("status", "queued"),
         "created_at": ts,
+        "queued_at": queue_now(),
         "updated_at": ts,
         "job_name": kw.get("job_name"),
         "owner_email": kw.get("owner_email"),
@@ -409,6 +428,8 @@ def insert_job(**kw) -> None:
 
 
 def update_job(job_id: str, **kw) -> None:
+    if kw.get("status") == "queued":
+        kw["queued_at"] = queue_now()
     kw["updated_at"] = now()
     sets = ", ".join([f"{k}=?" for k in kw])
     vals = list(kw.values()) + [job_id]

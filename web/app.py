@@ -26,6 +26,7 @@ MAX_UPLOAD_MB = int(os.environ.get("MYAGENCY_MAX_UPLOAD_MB", "25"))
 MAX_PDF_PAGES = int(os.environ.get("MYAGENCY_MAX_PDF_PAGES", "5"))
 MAX_AGENT_SOLVES_PER_JOB = max(1, int(os.environ.get("MYAGENCY_MAX_AGENT_SOLVES_PER_JOB", "4")))
 MAX_ACTIVE_JOBS = int(os.environ.get("MYAGENCY_MAX_ACTIVE_JOBS", "10"))
+MAX_ACTIVE_JOBS_PER_SESSION = max(1, int(os.environ.get("MYAGENCY_MAX_ACTIVE_JOBS_PER_SESSION", "1")))
 MAX_JOBS_PER_SESSION_DAY = int(os.environ.get("MYAGENCY_MAX_JOBS_PER_SESSION_DAY", "3"))
 MAX_JOBS_PER_IP_DAY = int(os.environ.get("MYAGENCY_MAX_JOBS_PER_IP_DAY", "10"))
 JOB_RETENTION_HOURS = int(os.environ.get("MYAGENCY_JOB_RETENTION_HOURS", "48"))
@@ -101,6 +102,18 @@ def _optional_upload(field_name: str, target_path: Path, allowed_suffixes: tuple
 def _client_ip() -> str:
     xff = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
     return xff or request.remote_addr or "unknown"
+
+
+def _session_active_limit_message() -> str:
+    if MAX_ACTIVE_JOBS_PER_SESSION == 1:
+        return (
+            "This browser already has an active job (queued or running). "
+            "Please wait for it to finish before starting another."
+        )
+    return (
+        f"This browser already has {MAX_ACTIVE_JOBS_PER_SESSION} active jobs "
+        "(queued or running). Please wait for one to finish before starting another."
+    )
 
 
 def _cleanup_old_jobs() -> None:
@@ -311,6 +324,10 @@ def submit():
         flash(f"The queue is currently full. Please try again shortly. Maximum active jobs: {MAX_ACTIVE_JOBS}.")
         return redirect(url_for("jobs"))
 
+    if db.count_active_jobs_for_session(sid) >= MAX_ACTIVE_JOBS_PER_SESSION:
+        flash(_session_active_limit_message())
+        return redirect(url_for("jobs"))
+
     since = db.cutoff(24)
     if db.count_jobs_for_session_since(sid, since) >= MAX_JOBS_PER_SESSION_DAY:
         flash(f"This browser session has reached the limit of {MAX_JOBS_PER_SESSION_DAY} jobs in 24 hours.")
@@ -457,6 +474,9 @@ def explore_job(job_id: str):
     if db.count_active_jobs() >= MAX_ACTIVE_JOBS:
         flash(f"The queue is currently full. Please try again shortly. Maximum active jobs: {MAX_ACTIVE_JOBS}.")
         return redirect(url_for("job_status", job_id=job_id))
+    if db.count_active_jobs_for_session(job["session_id"]) >= MAX_ACTIVE_JOBS_PER_SESSION:
+        flash(_session_active_limit_message())
+        return redirect(url_for("job_status", job_id=job_id))
 
     db.update_job(
         job_id,
@@ -485,6 +505,12 @@ def continue_job(job_id: str):
         return redirect(url_for("job_status", job_id=job_id))
     if not job["stamp"] or not job["transcript_txt"] or not job["result_html"]:
         flash("Continuation is unavailable because the transcript is not ready.")
+        return redirect(url_for("job_status", job_id=job_id))
+    if db.count_active_jobs() >= MAX_ACTIVE_JOBS:
+        flash(f"The queue is currently full. Please try again shortly. Maximum active jobs: {MAX_ACTIVE_JOBS}.")
+        return redirect(url_for("job_status", job_id=job_id))
+    if db.count_active_jobs_for_session(job["session_id"]) >= MAX_ACTIVE_JOBS_PER_SESSION:
+        flash(_session_active_limit_message())
         return redirect(url_for("job_status", job_id=job_id))
 
     # Reuse the same visible job row. The worker will append the follow-on

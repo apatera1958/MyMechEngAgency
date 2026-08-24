@@ -375,6 +375,16 @@ def count_active_jobs() -> int:
         return int(row["n"])
 
 
+def count_active_jobs_for_session(session_id: str) -> int:
+    with connect() as con:
+        row = con.execute(
+            "SELECT COUNT(*) AS n FROM jobs "
+            "WHERE session_id=? AND status IN ('queued','running')",
+            (session_id,),
+        ).fetchone()
+        return int(row["n"] or 0)
+
+
 def old_jobs(hours: int = 48):
     with connect() as con:
         return con.execute("SELECT * FROM jobs WHERE created_at < ?", (cutoff(hours),)).fetchall()

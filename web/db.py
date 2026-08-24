@@ -385,6 +385,47 @@ def count_active_jobs_for_session(session_id: str) -> int:
         return int(row["n"] or 0)
 
 
+def queue_snapshot(job_id: str):
+    """Return FIFO position and current queue/running counts for one queued job."""
+    with connect() as con:
+        target = con.execute(
+            "SELECT COALESCE(queued_at, created_at) AS queue_time "
+            "FROM jobs WHERE id=? AND status='queued'",
+            (job_id,),
+        ).fetchone()
+        if target is None:
+            return None
+
+        queue_time = target["queue_time"]
+        ahead = con.execute(
+            """
+            SELECT COUNT(*) AS n
+            FROM jobs
+            WHERE status='queued'
+              AND (
+                    COALESCE(queued_at, created_at) < ?
+                    OR (
+                        COALESCE(queued_at, created_at) = ?
+                        AND id < ?
+                    )
+                  )
+            """,
+            (queue_time, queue_time, job_id),
+        ).fetchone()
+        queued = con.execute(
+            "SELECT COUNT(*) AS n FROM jobs WHERE status='queued'"
+        ).fetchone()
+        running = con.execute(
+            "SELECT COUNT(*) AS n FROM jobs WHERE status='running'"
+        ).fetchone()
+
+        return {
+            "position": int(ahead["n"] or 0) + 1,
+            "queued_jobs": int(queued["n"] or 0),
+            "running_jobs": int(running["n"] or 0),
+        }
+
+
 def old_jobs(hours: int = 48):
     with connect() as con:
         return con.execute("SELECT * FROM jobs WHERE created_at < ?", (cutoff(hours),)).fetchall()

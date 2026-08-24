@@ -27,6 +27,8 @@ MAX_PDF_PAGES = int(os.environ.get("MYAGENCY_MAX_PDF_PAGES", "5"))
 MAX_AGENT_SOLVES_PER_JOB = max(1, int(os.environ.get("MYAGENCY_MAX_AGENT_SOLVES_PER_JOB", "4")))
 MAX_ACTIVE_JOBS = int(os.environ.get("MYAGENCY_MAX_ACTIVE_JOBS", "10"))
 MAX_ACTIVE_JOBS_PER_SESSION = max(1, int(os.environ.get("MYAGENCY_MAX_ACTIVE_JOBS_PER_SESSION", "1")))
+BACKGROUND_JOB_CONCURRENCY = max(1, int(os.environ.get("BACKGROUND_JOB_CONCURRENCY", "1")))
+ESTIMATED_JOB_MINUTES = max(1, int(os.environ.get("MYAGENCY_ESTIMATED_JOB_MINUTES", "5")))
 MAX_JOBS_PER_SESSION_DAY = int(os.environ.get("MYAGENCY_MAX_JOBS_PER_SESSION_DAY", "3"))
 MAX_JOBS_PER_IP_DAY = int(os.environ.get("MYAGENCY_MAX_JOBS_PER_IP_DAY", "10"))
 JOB_RETENTION_HOURS = int(os.environ.get("MYAGENCY_JOB_RETENTION_HOURS", "48"))
@@ -448,12 +450,27 @@ def job_status(job_id: str):
     parent = db.one(job["parent_id"]) if job["parent_id"] else None
     bundle = _latest_bundle(job["prob_dir"])
 
+    queue_info = None
+    if job["status"] == "queued":
+        snapshot = db.queue_snapshot(job_id)
+        if snapshot:
+            jobs_ahead = snapshot["running_jobs"] + snapshot["position"] - 1
+            batches_ahead = (
+                jobs_ahead + BACKGROUND_JOB_CONCURRENCY - 1
+            ) // BACKGROUND_JOB_CONCURRENCY
+            queue_info = {
+                **snapshot,
+                "worker_concurrency": BACKGROUND_JOB_CONCURRENCY,
+                "estimated_wait_minutes": batches_ahead * ESTIMATED_JOB_MINUTES,
+            }
+
     return render_template(
         "job_status.html",
         job=job,
         parent=parent,
         bundle=bundle,
         exploration_notebook=_exploration_notebook_path(job),
+        queue_info=queue_info,
     )
 
 

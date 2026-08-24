@@ -14,6 +14,20 @@
   <p><strong>Job ID:</strong> {{ job.id }}</p>
   <p><strong>Kind:</strong> {{ job.kind }}</p>
   <p><strong>Status:</strong> <span class="status {{ job.status }}">{{ job.status }}</span></p>
+
+  {% if job.status == 'queued' and queue_info %}
+  <p><strong>Queue position:</strong> {{ queue_info.position }} of {{ queue_info.queued_jobs }} waiting</p>
+  {% if queue_info.estimated_wait_minutes > 0 %}
+  <p><strong>Estimated start:</strong> about {{ queue_info.estimated_wait_minutes }} minutes
+    <span class="hint">(rough estimate; actual solve times vary)</span>
+  </p>
+  {% else %}
+  <p><strong>Estimated start:</strong> very soon
+    <span class="hint">(rough estimate; actual solve times vary)</span>
+  </p>
+  {% endif %}
+  {% endif %}
+
   <p><strong>Created:</strong> {{ job.created_at }}</p>
 
   {% if job.original_filename %}

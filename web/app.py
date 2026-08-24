@@ -454,14 +454,21 @@ def job_status(job_id: str):
     if job["status"] == "queued":
         snapshot = db.queue_snapshot(job_id)
         if snapshot:
-            jobs_ahead = snapshot["running_jobs"] + snapshot["position"] - 1
-            batches_ahead = (
-                jobs_ahead + BACKGROUND_JOB_CONCURRENCY - 1
+            free_slots = max(
+                BACKGROUND_JOB_CONCURRENCY - snapshot["running_jobs"],
+                0,
+            )
+            queued_beyond_free_slots = max(
+                snapshot["position"] - free_slots,
+                0,
+            )
+            batches_before_start = (
+                queued_beyond_free_slots + BACKGROUND_JOB_CONCURRENCY - 1
             ) // BACKGROUND_JOB_CONCURRENCY
             queue_info = {
                 **snapshot,
                 "worker_concurrency": BACKGROUND_JOB_CONCURRENCY,
-                "estimated_wait_minutes": batches_ahead * ESTIMATED_JOB_MINUTES,
+                "estimated_start_minutes": batches_before_start * ESTIMATED_JOB_MINUTES,
             }
 
     return render_template(

@@ -17,13 +17,13 @@
 
   {% if job.status == 'queued' and queue_info %}
   <p><strong>Queue position:</strong> {{ queue_info.position }} of {{ queue_info.queued_jobs }} waiting</p>
-  {% if queue_info.estimated_wait_minutes > 0 %}
-  <p><strong>Estimated start:</strong> about {{ queue_info.estimated_wait_minutes }} minutes
-    <span class="hint">(rough estimate; actual solve times vary)</span>
+  {% if queue_info.estimated_start_minutes > 0 %}
+  <p><strong>Estimated START time:</strong> about {{ queue_info.estimated_start_minutes }} minutes
+    <span class="hint">(rough estimate; actual START time depends on how long currently running jobs take)</span>
   </p>
   {% else %}
-  <p><strong>Estimated start:</strong> very soon
-    <span class="hint">(rough estimate; actual solve times vary)</span>
+  <p><strong>Estimated START time:</strong> very soon
+    <span class="hint">(a worker slot is currently available or should become available immediately)</span>
   </p>
   {% endif %}
   {% endif %}

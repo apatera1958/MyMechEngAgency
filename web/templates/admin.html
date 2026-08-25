@@ -9,7 +9,7 @@
 </div>
 <h2>Recent jobs</h2>
 <table>
-  <thead><tr><th>Created</th><th>User</th><th>Job name</th><th>File</th><th>Status</th><th>Kind</th><th>Log</th></tr></thead>
+  <thead><tr><th>Created</th><th>User</th><th>Job name</th><th>File</th><th>Status</th><th>Kind</th><th>Follow-Ons</th><th>Notebook</th><th>Log</th></tr></thead>
   <tbody>
     {% for job in jobs %}
     <tr>
@@ -19,6 +19,9 @@
       <td>{{ job.original_filename or '—' }}</td>
       <td><span class="status {{ job.status }}">{{ job.status }}</span></td>
       <td>{{ job.kind }}</td>
+      {% set history = admin_history.get(job.id, (0, false)) %}
+      <td>{{ history[0] }}</td>
+      <td>{{ 'yes' if history[1] else 'no' }}</td>
       <td><a href="{{ url_for('log', job_id=job.id) }}">log</a></td>
     </tr>
     {% endfor %}

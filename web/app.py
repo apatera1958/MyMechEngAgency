@@ -71,7 +71,7 @@ def _is_authenticated() -> bool:
 
 
 def _require_auth():
-    if not _is_authenticated():
+    if not _is_authenticated() and not _admin_authorized():
         flash("Please enter the site password.")
         return redirect(url_for("enter"))
     _ensure_session_id()
@@ -228,6 +228,24 @@ def _next_follow_on_number_for_job(job) -> int:
     except Exception:
         pass
     return 1
+
+
+def _admin_job_history(job) -> tuple[int, bool]:
+    """Return persistent Follow-On count and notebook-presence indicators."""
+    follow_on_count = 0
+    try:
+        html_path = Path(job["result_html"]) if job and job["result_html"] else None
+        if html_path and html_path.exists():
+            text = html_path.read_text(encoding="utf-8", errors="ignore")
+            nums = [
+                int(m.group(1))
+                for m in re.finditer(r">\s*Follow-On\s+(\d+)\s*<", text)
+            ]
+            follow_on_count = max(nums) if nums else 0
+    except Exception:
+        follow_on_count = 0
+
+    return follow_on_count, bool(_exploration_notebook_path(job))
 
 
 def _session_job_name_suggestions(session_id: str) -> list[str]:
@@ -436,6 +454,8 @@ def jobs():
 def _session_can_access(job) -> bool:
     if not job:
         return False
+    if _admin_authorized():
+        return True
     return bool(job["session_id"]) and job["session_id"] == session.get("session_id")
 
 
@@ -711,9 +731,15 @@ def admin():
 
     if not _admin_authorized():
         return render_template("admin_login.html")
+    recent_jobs = db.recent(100)
+    admin_history = {
+        job["id"]: _admin_job_history(job)
+        for job in recent_jobs
+    }
     return render_template(
         "admin.html",
-        jobs=db.recent(100),
+        jobs=recent_jobs,
+        admin_history=admin_history,
         active_jobs=db.count_active_jobs(),
         max_active_jobs=MAX_ACTIVE_JOBS,
         retention_hours=JOB_RETENTION_HOURS,
